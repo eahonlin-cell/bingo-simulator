@@ -1,0 +1,1544 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="用台彩 BINGO BINGO 真實開獎號碼模擬投注、對獎，並分析冷熱號碼、超級獎號與大小單雙。">
+<style>:root{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>賓果賓果模擬投注</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: a betting-slip workbench — sticky status bar, three tabs (投注 / 開獎紀錄 / 冷熱分析), slip grid left, tickets right */
+:root {
+  --bg: #f3f4f7;
+  --paper: #ffffff;
+  --ink: #1b1d24;
+  --muted: #646a7a;
+  --line: #dcdfe7;
+  --slip: #c8283f;          /* lottery-slip red ink */
+  --slip-soft: #fbe6ea;
+  --hot: #d9481c;
+  --hot-soft: #fde3d8;
+  --cold: #2563b8;
+  --cold-soft: #dde8f8;
+  --win: #19803d;
+  --win-soft: #dff3e5;
+  --lose: #9a3412;
+  --pending: #8a6a00;
+  --pending-soft: #fbf1cf;
+  --chip: #eef0f5;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111318; --paper: #1a1d24; --ink: #e9ebf1; --muted: #9aa1b2; --line: #2d313b;
+  --slip: #f0566c; --slip-soft: #3a1d24; --hot: #ff7a45; --hot-soft: #45261a; --cold: #6aa5ff; --cold-soft: #1b2a44;
+  --win: #4ccf7a; --win-soft: #16301f; --lose: #f59e6b; --pending: #e4c45a; --pending-soft: #3a3214; --chip: #242833;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #111318; --paper: #1a1d24; --ink: #e9ebf1; --muted: #9aa1b2; --line: #2d313b;
+  --slip: #f0566c; --slip-soft: #3a1d24; --hot: #ff7a45; --hot-soft: #45261a; --cold: #6aa5ff; --cold-soft: #1b2a44;
+  --win: #4ccf7a; --win-soft: #16301f; --lose: #f59e6b; --pending: #e4c45a; --pending-soft: #3a3214; --chip: #242833;
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+.num, .mono { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--slip); outline-offset: 2px; }
+
+header.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper); border-bottom: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; }
+.bar-in { max-width: 1240px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: .02em; text-wrap: balance; }
+.brand h1 b { color: var(--slip); }
+.brand small { color: var(--muted); font-size: 12px; }
+.status { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; color: var(--muted); }
+.status strong { color: var(--ink); font-weight: 600; }
+.bank { display: flex; gap: 6px; align-items: baseline; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; }
+.bank .num { font-size: 16px; font-weight: 600; color: var(--ink); }
+
+@media (max-width: 720px) { header.bar { position: static; } .brand { flex-wrap: wrap; } }
+nav.tabs { display: flex; gap: 4px; max-width: 1240px; margin: 10px auto 0; }
+nav.tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 6px 6px 0 0; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; }
+nav.tabs button[aria-selected="true"] { color: var(--slip); border-bottom-color: var(--slip); font-weight: 700; }
+
+main { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 48px; }
+section.view { display: grid; gap: 18px; }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel h2 { margin: 0 0 10px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.panel h2 .hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+.cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+
+.btn { border: 1px solid var(--line); background: var(--paper); padding: 6px 12px; border-radius: 6px; font-size: 14px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--slip); border-color: var(--slip); color: #fff; font-weight: 700; }
+.btn.primary:disabled { opacity: .45; cursor: not-allowed; }
+.btn.small { padding: 3px 9px; font-size: 13px; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: var(--paper); padding: 5px 11px; font-size: 14px; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--slip); color: #fff; font-weight: 700; }
+label.fld { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+label.fld input, label.fld select { border: 1px solid var(--line); background: var(--paper); border-radius: 6px; padding: 5px 8px; font-size: 14px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.note { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.warn { color: var(--lose); }
+
+/* slip grid */
+.slip { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin: 12px 0; }
+.slip button { aspect-ratio: 1; max-width: 100%; border: 1.5px solid var(--slip); color: var(--slip); background: var(--paper); border-radius: 5px; font-family: var(--f-num); font-weight: 500; font-size: 14px; padding: 0; }
+.slip button[aria-pressed="true"] { background: var(--slip); color: #fff; font-weight: 600; }
+.slip button:disabled { opacity: .35; cursor: not-allowed; }
+.slip button { position: relative; }
+.slip button.hz::after, .slip button.cz::after { content: ""; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; }
+.slip button.hz::after { background: var(--hot); }
+.slip button.cz::after { background: var(--cold); }
+.slip button[aria-pressed="true"]::after { box-shadow: 0 0 0 1.5px #fff; }
+.ref { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; display: grid; gap: 8px; }
+.ref-k { font-size: 13px; font-weight: 700; }
+.ref-rows { display: grid; gap: 6px; }
+.ref-row { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: center; }
+.ref-row > span:first-child { font-size: 12.5px; font-weight: 600; }
+.ref-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.rchip { border: 1px solid var(--line); background: var(--paper); border-radius: 6px; padding: 1px 6px 1px 5px; display: inline-flex; gap: 4px; align-items: baseline; font-family: var(--f-num); font-size: 13px; }
+.rchip b { font-weight: 600; }
+.rchip small { font-size: 10.5px; color: var(--muted); }
+.rchip.h { border-color: var(--hot); color: var(--hot); }
+.rchip.c { border-color: var(--cold); color: var(--cold); }
+.rchip.g { border-color: var(--pending); color: var(--pending); }
+.rchip[aria-pressed="true"] { background: var(--slip); border-color: var(--slip); color: #fff; }
+.rchip[aria-pressed="true"] small { color: #fff; }
+.rchip:disabled { opacity: .4; cursor: not-allowed; }
+.ref-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.alert { border-color: var(--pending); background: color-mix(in srgb, var(--pending-soft) 45%, var(--paper)); }
+.alert-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .alert-grid { grid-template-columns: minmax(0, 1fr); } }
+.alert-sec { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.alert-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; }
+.alert-head input { width: 64px; border: 1px solid var(--line); background: var(--paper); border-radius: 6px; padding: 2px 6px; font-family: var(--f-num); }
+.rchip.new { box-shadow: 0 0 0 2px var(--pending); }
+.rchip em { font-style: normal; font-size: 10px; font-weight: 700; color: var(--pending); }
+.badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--pending); color: var(--paper); font-size: 11px; font-weight: 700; margin-left: 4px; font-family: var(--f-num); }
+nav.tabs { overflow-x: auto; }
+nav.tabs button { white-space: nowrap; }
+@media (max-width: 520px) {
+  nav.tabs button { padding: 6px 10px; }
+  #starSeg { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: 100%; }
+  #starSeg button { padding: 5px 0; }
+  .ref-row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+}
+.choice { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+.choice button { flex: 1 1 120px; border: 1.5px solid var(--slip); color: var(--slip); background: var(--paper); border-radius: 8px; padding: 14px 10px; font-size: 18px; font-weight: 700; }
+.choice button small { display: block; font-size: 12px; font-weight: 400; }
+.choice button[aria-pressed="true"] { background: var(--slip); color: #fff; }
+.odds { width: 100%; border-collapse: collapse; font-size: 13px; }
+.odds td, .odds th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.odds th:first-child, .odds td:first-child { text-align: left; }
+.odds th { color: var(--muted); font-weight: 500; }
+.summary { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 12px; background: var(--chip); border-radius: 8px; font-size: 14px; align-items: center; }
+.summary .num { font-weight: 600; }
+
+/* chips */
+.balls { display: flex; flex-wrap: wrap; gap: 3px; }
+.ball { font-family: var(--f-num); font-size: 12.5px; width: 26px; height: 26px; display: inline-grid; place-items: center; border-radius: 50%; background: var(--chip); color: var(--ink); }
+.ball.hit { background: var(--win); color: #fff; font-weight: 600; }
+.ball.sup { box-shadow: 0 0 0 2px var(--slip); }
+.ball.h { background: var(--hot-soft); color: var(--hot); font-weight: 600; }
+.ball.c { background: var(--cold-soft); color: var(--cold); font-weight: 600; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill.win { background: var(--win-soft); color: var(--win); }
+.pill.lose { background: var(--chip); color: var(--muted); }
+.pill.pend { background: var(--pending-soft); color: var(--pending); }
+.pill.hot { background: var(--hot-soft); color: var(--hot); }
+.pill.cold { background: var(--cold-soft); color: var(--cold); }
+
+/* tickets */
+.tickets { display: grid; gap: 10px; }
+.ticket { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.ticket .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; align-items: baseline; }
+.ticket .top b { font-size: 14px; }
+.ticket .meta { font-size: 12.5px; color: var(--muted); }
+.ticket details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.periods { display: grid; gap: 4px; margin-top: 6px; }
+.prow { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.empty { color: var(--muted); font-size: 14px; padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
+
+/* records */
+.records { display: grid; }
+.rec { display: grid; grid-template-columns: 112px minmax(0, 1fr) 150px; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: center; }
+.rec .when { font-size: 12.5px; color: var(--muted); }
+.rec .when b { color: var(--ink); font-family: var(--f-num); font-size: 13px; font-weight: 600; }
+.rec .side { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; align-items: center; font-size: 12px; }
+@media (max-width: 720px) { .rec { grid-template-columns: minmax(0, 1fr); } .rec .side { justify-content: flex-start; } }
+
+/* heat */
+.heat { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.cell { border-radius: 6px; padding: 5px 2px 4px; text-align: center; line-height: 1.15; border: 1px solid var(--line); }
+.cell .n { font-family: var(--f-num); font-weight: 600; font-size: 14px; }
+.cell .c { font-family: var(--f-num); font-size: 11px; opacity: .85; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat .v { font-family: var(--f-num); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat .s { font-size: 12px; color: var(--muted); }
+.lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.rank { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rank td, .rank th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.rank th { color: var(--muted); font-weight: 500; }
+.rank td:first-child, .rank th:first-child { text-align: left; }
+.chart { overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 460px; }
+.chart text { fill: var(--muted); font-family: var(--f-num); font-size: 11px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+textarea { width: 100%; min-height: 90px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); padding: 8px; font-family: var(--f-num); font-size: 12px; }
+.msg { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--chip); }
+.msg.err { background: var(--hot-soft); color: var(--lose); }
+.msg.ok { background: var(--win-soft); color: var(--win); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand"><h1><b>BINGO</b> BINGO 模擬投注</h1><small>台彩真實開獎號碼對獎</small></div>
+    <div class="status">
+      <span>資料：<strong id="dataRange">—</strong></span>
+      <span>最新一期：<strong class="num" id="latestTerm">—</strong></span>
+      <button class="btn small" id="refreshBtn" type="button">立即更新</button>
+      <span id="autoStamp" class="note" style="margin:0"></span>
+      <span class="bank">模擬資金 <span class="num" id="bankVal">—</span></span>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="bet" type="button">模擬投注</button>
+    <button role="tab" aria-selected="false" data-tab="rec" type="button">開獎紀錄</button>
+    <button role="tab" aria-selected="false" data-tab="ana" type="button">冷熱分析</button>
+    <button role="tab" aria-selected="false" data-tab="sup" type="button">超級獎號</button>
+    <button role="tab" aria-selected="false" data-tab="bso" type="button">大小單雙</button>
+  </nav>
+</header>
+
+<main>
+  <div id="refreshMsg" hidden class="msg" style="margin-bottom:14px"></div>
+
+  <!-- ============ BET ============ -->
+  <section class="view" id="view-bet">
+    <div class="panel alert" id="alertPanel">
+      <h2>連續未開提醒 <span class="hint" id="alertHint"></span></h2>
+      <div class="alert-grid">
+        <div class="alert-sec">
+          <div class="alert-head">
+            <b>基本玩法</b><span>連續</span>
+            <input id="thBasic" type="number" min="1" max="200" inputmode="numeric" aria-label="基本玩法提醒期數">
+            <span>期以上沒開出</span><span class="pill hot" id="cntBasic"></span>
+          </div>
+          <div class="ref-chips" id="alertBasic"></div>
+        </div>
+        <div class="alert-sec">
+          <div class="alert-head">
+            <b>超級獎號</b><span>連續</span>
+            <input id="thSuper" type="number" min="1" max="2000" inputmode="numeric" aria-label="超級獎號提醒期數">
+            <span>期以上沒當超級獎號</span><span class="pill hot" id="cntSuper"></span>
+          </div>
+          <div class="ref-chips" id="alertSuper"></div>
+        </div>
+      </div>
+      <p class="note" id="alertNote"></p>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <h2>選號單</h2>
+        <div class="seg" id="gameSeg" role="group" aria-label="玩法">
+          <button type="button" data-game="basic" aria-pressed="true">基本玩法</button>
+          <button type="button" data-game="super" aria-pressed="false">超級獎號</button>
+          <button type="button" data-game="bs" aria-pressed="false">猜大小</button>
+          <button type="button" data-game="oe" aria-pressed="false">猜單雙</button>
+        </div>
+
+        <div id="basicBox">
+          <div class="row" style="margin-top:12px">
+            <div>
+              <div class="note" style="margin:0 0 4px">星數（選幾個號碼）</div>
+              <div class="seg" id="starSeg" role="group" aria-label="星數"></div>
+            </div>
+          </div>
+        </div>
+        <p class="note" id="pickHint"></p>
+        <div class="ref" id="refBox">
+          <div class="row" style="align-items:center">
+            <span class="ref-k">冷熱參考</span>
+            <div class="seg" id="refSeg" role="group" aria-label="參考範圍"></div>
+            <span class="note" style="margin:0" id="refNote"></span>
+          </div>
+          <div class="ref-rows" id="refRows"></div>
+        </div>
+        <div class="slip" id="slip"></div>
+        <div class="choice" id="choiceBox" hidden></div>
+        <div class="row">
+          <button class="btn" id="quickBtn" type="button">快選</button>
+          <button class="btn" id="clearBtn" type="button">清除</button>
+        </div>
+
+        <div class="row" style="margin-top:16px">
+          <label class="fld">倍數（1–50）<input id="mult" type="number" min="1" max="50" value="1" inputmode="numeric"></label>
+          <label class="fld">連續期數<input id="periods" type="number" min="1" max="203" value="1" inputmode="numeric"></label>
+          <label class="fld" style="flex:1 1 220px">從哪一期開始
+            <select id="startSel"></select>
+          </label>
+        </div>
+        <p class="note">台彩實際多期投注最多 12 期；這裡放寬到 203 期（一整天），方便回測。選「下一期」會在開獎後自動對獎。</p>
+
+        <div class="summary" style="margin-top:12px">
+          <span>本單金額 <span class="num" id="costVal">0</span> 元</span>
+          <span>單期中獎率 <span class="num" id="probVal">—</span></span>
+          <span>期望回收 <span class="num" id="evVal">—</span></span>
+          <button class="btn primary" id="placeBtn" type="button" style="margin-left:auto">下注</button>
+        </div>
+        <p class="note warn" id="placeErr" hidden></p>
+      </div>
+
+      <div class="panel">
+        <h2>本玩法獎金表 <span class="hint">單注 25 元 · 固定獎金</span></h2>
+        <table class="odds" id="oddsTbl"></table>
+        <p class="note" id="oddsNote"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>我的投注 <span class="hint" id="ledgerHint"></span></h2>
+      <div class="summary" id="ledger"></div>
+      <div class="row" style="margin:10px 0">
+        <button class="btn small" id="settleAllBtn" type="button">只看待開獎</button>
+        <button class="btn small" id="resetConfirm" type="button">重設資金與投注</button>
+        <span id="resetBox" hidden class="row">
+          <span class="note warn" style="margin:0">會清除所有模擬投注紀錄。</span>
+          <label class="fld">起始資金<input id="bankInit" type="number" min="100" step="100" value="10000"></label>
+          <button class="btn small primary" id="resetBtn" type="button">確定重設</button>
+          <button class="btn small" id="resetCancel" type="button">取消</button>
+        </span>
+      </div>
+      <div class="tickets" id="tickets"></div>
+    </div>
+  </section>
+
+  <!-- ============ RECORDS ============ -->
+  <section class="view" id="view-rec" hidden>
+    <div class="panel">
+      <h2>開獎紀錄 <span class="hint">號碼顏色＝開出前 100 期的冷熱（紅＝熱、藍＝冷），外框＝超級獎號</span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <label class="fld">日期<select id="recDate"></select></label>
+        <label class="fld">搜尋期別或號碼<input id="recSearch" type="search" placeholder="例如 115060650 或 07"></label>
+      </div>
+      <div class="records" id="records"></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="recMore" type="button">顯示更多</button></div>
+    </div>
+    <div class="panel">
+      <h2>手動匯入 <span class="hint">自動更新失敗時，可以手動貼上台彩資料</span></h2>
+      <p class="note" style="margin-top:0">在瀏覽器開啟台彩的開獎資料網址，全選複製頁面文字，貼到下方後按匯入。網址格式（把日期改成要的那天）：</p>
+      <p class="mono" style="font-size:12px;word-break:break-all;margin:6px 0">https://api.taiwanlottery.com/TLCAPIWeB/Lottery/BingoResult?openDate=<span id="apiDate"></span>&amp;pageNum=1&amp;pageSize=250</p>
+      <div class="row" style="margin-bottom:8px"><a class="btn small" id="apiLink" target="_blank" rel="noopener" href="#">開啟今天的資料</a></div>
+      <textarea id="pasteBox" placeholder='貼上 {"rtCode":0,...} 開頭的內容'></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn" id="importBtn" type="button">匯入</button><span id="importMsg" class="note"></span></div>
+    </div>
+  </section>
+
+  <!-- ============ ANALYSIS ============ -->
+  <section class="view" id="view-ana" hidden>
+    <div class="panel">
+      <h2>分析範圍</h2>
+      <div class="row">
+        <div class="seg" id="winSeg" role="group" aria-label="分析範圍"></div>
+        <label class="fld">或指定日期<select id="anaDate"></select></label>
+      </div>
+      <p class="note" id="winNote"></p>
+    </div>
+    <div class="stats" id="statTiles"></div>
+    <div class="panel">
+      <h2>80 個號碼出現次數 <span class="hint">顏色＝與期望值相差幾個標準差</span></h2>
+      <div class="legend" style="margin-bottom:8px">
+        <span><span class="sw" style="background:var(--cold)"></span>冷（低於 −1σ）</span>
+        <span><span class="sw" style="background:var(--chip);border:1px solid var(--line)"></span>正常範圍</span>
+        <span><span class="sw" style="background:var(--hot)"></span>熱（高於 +1σ）</span>
+      </div>
+      <div class="heat" id="heat"></div>
+    </div>
+    <div class="panel">
+      <h2>熱號、冷號、遺漏</h2>
+      <div class="lists" id="lists"></div>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <h2>出現次數分布 <span class="hint">長條＝實際號碼個數，曲線＝理論常態</span></h2>
+        <div class="chart" id="histChart"></div>
+      </div>
+      <div class="panel">
+        <h2>每期大號（41–80）個數分布 <span class="hint">長條＝實際期數，點＝理論值</span></h2>
+        <div class="chart" id="bigChart"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>這是什麼意思</h2>
+      <p class="note" style="font-size:13.5px;max-width:72ch" id="explain"></p>
+    </div>
+  </section>
+
+  <!-- ============ SUPER ============ -->
+  <section class="view" id="view-sup" hidden>
+    <div class="panel">
+      <h2>超級獎號分析 <span class="hint">超級獎號＝每期開出的第 20 顆球，每個號碼機率 1/80</span></h2>
+      <div class="row">
+        <div class="seg" id="supWinSeg" role="group" aria-label="分析範圍"></div>
+        <label class="fld">或指定日期<select id="supDate"></select></label>
+      </div>
+      <p class="note" id="supWinNote"></p>
+    </div>
+    <div class="stats" id="supTiles"></div>
+    <div class="panel">
+      <h2>最近 30 期超級獎號 <span class="hint">由新到舊</span></h2>
+      <div class="balls" id="supRecent"></div>
+    </div>
+    <div class="panel">
+      <h2>各號碼當超級獎號的次數 <span class="hint">顏色＝與期望值相差幾個標準差；小字＝目前遺漏期數</span></h2>
+      <div class="legend" style="margin-bottom:8px">
+        <span><span class="sw" style="background:var(--cold)"></span>冷（低於 −1σ）</span>
+        <span><span class="sw" style="background:var(--chip);border:1px solid var(--line)"></span>正常範圍</span>
+        <span><span class="sw" style="background:var(--hot)"></span>熱（高於 +1σ）</span>
+      </div>
+      <div class="heat" id="supHeat"></div>
+    </div>
+    <div class="panel">
+      <h2>超級獎號熱號、冷號、遺漏</h2>
+      <div class="lists" id="supLists"></div>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <h2>尾數分布 <span class="hint">長條＝實際，點＝理論（每個尾數 8 個號碼）</span></h2>
+        <div class="chart" id="supTail"></div>
+      </div>
+      <div class="panel">
+        <h2>區段分布 <span class="hint">01–10、11–20…71–80</span></h2>
+        <div class="chart" id="supZone"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>大小、單雙</h2>
+      <table class="odds" id="supAttr"></table>
+    </div>
+    <div class="panel">
+      <h2>選號策略回測 <span class="hint">每期押 1 注超級獎號（25 元），用真實開獎逐期對獎</span></h2>
+      <div class="row" style="margin-bottom:10px">
+        <label class="fld">統計冷熱用的前幾期<select id="stratLook"><option value="100">100 期</option><option value="203" selected>203 期</option><option value="500">500 期</option></select></label>
+        <label class="fld">固定號碼<input id="stratFixed" type="number" min="1" max="80" value="7" inputmode="numeric"></label>
+      </div>
+      <div style="overflow-x:auto"><table class="odds" id="stratTbl"></table></div>
+      <p class="note" id="stratNote"></p>
+    </div>
+    <div class="panel">
+      <h2>連續投注中獎機率</h2>
+      <div class="row">
+        <label class="fld">每期選幾個號碼<input id="calcK" type="number" min="1" max="20" value="1" inputmode="numeric"></label>
+        <label class="fld">連續幾期<input id="calcN" type="number" min="1" max="203" value="10" inputmode="numeric"></label>
+      </div>
+      <div class="summary" id="calcOut" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ============ BIG/SMALL ODD/EVEN ============ -->
+  <section class="view" id="view-bso" hidden>
+    <div class="panel">
+      <h2>大小單雙分析 <span class="hint">任一邊開出 13 個（含）以上才算中；12:8 到 8:12 兩邊都不中</span></h2>
+      <div class="row">
+        <div class="seg" id="bsoWinSeg" role="group" aria-label="分析範圍"></div>
+        <label class="fld">或指定日期<select id="bsoDate"></select></label>
+      </div>
+      <p class="note" id="bsoWinNote"></p>
+    </div>
+    <div class="cols" id="bsoCols"></div>
+    <div class="panel">
+      <h2>最近 60 期走勢 <span class="hint">由舊到新，左到右；格內數字＝大號個數 / 單數個數</span></h2>
+      <div id="bsoTrend" style="overflow-x:auto"></div>
+    </div>
+    <div class="panel">
+      <h2>大小 × 單雙 交叉次數 <span class="hint">括號＝理論期望次數</span></h2>
+      <div style="overflow-x:auto"><table class="odds" id="bsoCross"></table></div>
+    </div>
+    <div class="panel">
+      <h2>押注策略回測 <span class="hint">每期押 1 注（兩邊都押算 2 注），用真實開獎逐期對獎</span></h2>
+      <div style="overflow-x:auto"><table class="odds" id="bsoStrat"></table></div>
+      <p class="note" id="bsoStratNote"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ===== embedded official draws (台彩 API 擷取)：date,firstTerm,count,base64(每期 11 bytes：80-bit 號碼遮罩 + 超級獎號) ===== */
+const EMBED = "";
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, "0");
+const fmt = n => Math.round(n).toLocaleString("zh-TW");
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+function taipeiDate(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 864e5);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+function comb(n, k) { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
+function hyper(k, m) { return comb(20, m) * comb(60, k - m) / comb(80, k); } // 選 k 個中 m 個
+
+/* ---------- official pay tables (台彩官網 · 固定獎金倍數) ---------- */
+const PAY = {
+  1: { 1: 2 },
+  2: { 2: 3, 1: 1 },
+  3: { 3: 20, 2: 2 },
+  4: { 4: 40, 3: 4, 2: 1 },
+  5: { 5: 300, 4: 20, 3: 2 },
+  6: { 6: 1000, 5: 40, 4: 8, 3: 1 },
+  7: { 7: 3200, 6: 120, 5: 12, 4: 2, 3: 1 },
+  8: { 8: 20000, 7: 800, 6: 40, 5: 8, 4: 1, 0: 1 },
+  9: { 9: 40000, 8: 4000, 7: 120, 6: 20, 5: 4, 4: 1, 0: 1 },
+  10: { 10: 200000, 9: 10000, 8: 1000, 7: 100, 6: 10, 5: 1, 0: 1 }
+};
+const UNIT = 25;
+// P(大號 >= 13) — 超幾何
+let P_BS = 0; for (let m = 13; m <= 20; m++) P_BS += comb(40, m) * comb(40, 20 - m) / comb(80, 20);
+
+/* ---------- draws ---------- */
+const draws = new Map(); // term -> {t, date, mask:Uint8Array(10), sup, nums:[] sorted}
+function addDraw(t, date, nums, sup) {
+  const mask = new Uint8Array(10);
+  for (const n of nums) mask[(n - 1) >> 3] |= 1 << ((n - 1) & 7);
+  draws.set(t, { t, date, mask, sup, nums: nums.slice().sort((a, b) => a - b) });
+}
+const has = (d, n) => (d.mask[(n - 1) >> 3] >> ((n - 1) & 7)) & 1;
+function loadPacked(line) {
+  const [date, first, count, b64] = line.trim().split(",");
+  const bin = atob(b64);
+  for (let i = 0; i < +count; i++) {
+    const nums = [];
+    for (let n = 1; n <= 80; n++) if ((bin.charCodeAt(i * 11 + ((n - 1) >> 3)) >> ((n - 1) & 7)) & 1) nums.push(n);
+    addDraw(+first + i, date, nums, bin.charCodeAt(i * 11 + 10));
+  }
+}
+if (EMBED.trim()) EMBED.trim().split("\n").forEach(loadPacked);
+// 本機補抓的資料
+const extra = store.get("bb_extra_v1", {});
+for (const [t, v] of Object.entries(extra)) if (!draws.has(+t)) addDraw(+t, v[0], v[1], v[2]);
+
+let sorted = [];      // ascending terms
+let dayFirst = {};    // date -> first term of that day (when known)
+function reindex() {
+  sorted = [...draws.keys()].sort((a, b) => a - b);
+  dayFirst = {};
+  const byDate = {};
+  for (const t of sorted) { const d = draws.get(t).date; (byDate[d] ||= []).push(t); }
+  const dates = Object.keys(byDate).sort();
+  dates.forEach((d, i) => {
+    const prev = dates[i - 1];
+    const prevLast = prev ? byDate[prev][byDate[prev].length - 1] : null;
+    const prevNext = prev && new Date(d) - new Date(prev) === 864e5 && byDate[prev].length >= 203 ? prevLast + 1 : null;
+    dayFirst[d] = prevNext ?? (byDate[d].length >= 203 ? byDate[d][0] : byDate[d][0]);
+  });
+}
+function drawTime(dr) {
+  const f = dayFirst[dr.date]; if (f == null) return "";
+  const m = 7 * 60 + 5 + (dr.t - f) * 5;
+  return pad(Math.floor(m / 60)) + ":" + pad(m % 60);
+}
+const latest = () => sorted[sorted.length - 1];
+const datesDesc = () => [...new Set(sorted.map(t => draws.get(t).date))].sort().reverse();
+
+/* ---------- live refresh via Claude 桌面版內建瀏覽器 ---------- */
+const API = d => `https://api.taiwanlottery.com/TLCAPIWeB/Lottery/BingoResult?openDate=${d}&pageNum=1&pageSize=250`;
+function textOf(res) {
+  if (res && typeof res.payload === "object" && res.payload && res.payload.content) return res.payload;
+  let s = typeof res?.payload === "string" ? res.payload : "";
+  if (!s && Array.isArray(res?.content)) s = res.content.filter(b => b.type === "text").map(b => b.text).join("\n");
+  if (!s && res?.payload && typeof res.payload === "object") s = JSON.stringify(res.payload);
+  return s;
+}
+function parseApi(txt) {
+  if (typeof txt === "object") return txt;
+  let i = txt.indexOf('{"rtCode"'); if (i < 0) i = txt.indexOf("{");
+  const j = txt.lastIndexOf("}");
+  if (i < 0 || j < i) throw new Error("找不到開獎資料（JSON）");
+  return JSON.parse(txt.slice(i, j + 1));
+}
+function ingest(json, date) {
+  const rows = json?.content?.bingoQueryResult;
+  if (!Array.isArray(rows)) throw new Error("內容不是賓果賓果開獎資料");
+  let added = 0;
+  for (const r of rows) {
+    const t = +r.drawTerm; const order = (r.openShowOrder || r.bigShowOrder || []).map(Number);
+    if (!t || order.length !== 20) continue;
+    if (!draws.has(t)) added++;
+    addDraw(t, date, order, order[19]);
+    extra[t] = [date, order, order[19]];
+  }
+  store.set("bb_extra_v1", extra);
+  return added;
+}
+function showMsg(text, kind) { const m = $("#refreshMsg"); m.textContent = text; m.className = "msg " + (kind || ""); m.hidden = !text; }
+const MCP_FIX = {
+  server_not_connected: "自動更新需要在 Claude 桌面版開啟這個頁面（使用內建瀏覽器抓台彩資料）。在其他地方開啟時，請用「開獎紀錄」分頁下方的手動匯入。",
+  not_in_manifest: "你沒有允許這個頁面使用內建瀏覽器，所以無法自動更新。可以從頁面的權限選單重新允許，或改用手動匯入。",
+  approval_required: "需要你允許這個頁面使用內建瀏覽器才能抓取開獎資料。",
+  cancelled: "已取消抓取。",
+  not_granted: "這個檢視不支援自動更新，請改用手動匯入。",
+  capability_disabled: "這個檢視不支援自動更新，請改用手動匯入。",
+  blocked_by_policy: "組織政策封鎖了內建瀏覽器，請改用手動匯入。"
+};
+/* ---------- 自動更新：讀取 GitHub Actions 每 5 分鐘寫入的 data/*.json ---------- */
+const DAYS_TO_LOAD = 7;
+const POLL_MS = 60 * 1000;
+async function getJson(path) {
+  const r = await fetch(path + (path.includes("?") ? "&" : "?") + "t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error(path + " HTTP " + r.status);
+  return r.json();
+}
+function ingestDay(j) {
+  let added = 0;
+  for (const [t, s] of j.draws) {
+    if (draws.has(t)) continue;
+    const order = []; for (let i = 0; i < 40; i += 2) order.push(+s.slice(i, i + 2));
+    addDraw(t, j.date, order, order[19]); added++;
+  }
+  return added;
+}
+let directApiOk = null; // 台彩 API 是否允許瀏覽器直接讀取（CORS），第一次失敗後就不再試
+async function tryDirectApi() {
+  if (directApiOk === false) return 0;
+  try {
+    const d = taipeiDate();
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(API(d), { signal: ctl.signal, cache: "no-store" }); clearTimeout(tm);
+    const added = ingest(await r.json(), d); directApiOk = true; return added;
+  } catch { directApiOk = false; return 0; }
+}
+let lastUpdated = "";
+async function loadAll(initial) {
+  const idx = await getJson("data/index.json");
+  lastUpdated = idx.updated || "";
+  const dates = initial ? idx.dates.slice(-DAYS_TO_LOAD) : idx.dates.slice(-2);
+  let added = 0;
+  for (const d of dates) added += ingestDay(await getJson(`data/${d}.json`));
+  added += await tryDirectApi();
+  return added;
+}
+async function refreshDraws(silent) {
+  const btn = $("#refreshBtn");
+  btn.disabled = true; btn.textContent = "更新中…";
+  try {
+    const before = sorted.length ? latest() : 0;
+    const added = await loadAll(false);
+    if (added) { reindex(); renderAll(); }
+    const msg = added ? `已更新 ${added} 期新開獎（最新 ${latest()}），對獎結果已重新計算。 ${alertSummary()}` : "目前沒有新的開獎。";
+    if (!silent || (added && latest() !== before)) showMsg(msg, "ok");
+  } catch (e) {
+    if (!silent) showMsg("更新失敗：" + e.message + "。稍後會自動再試。", "err");
+  } finally { btn.disabled = false; btn.textContent = "立即更新"; updateStamp(); }
+}
+function updateStamp() {
+  const el = $("#autoStamp"); if (!el) return;
+  const src = directApiOk ? "台彩 API 直連" : "GitHub 資料檔";
+  el.textContent = `自動更新中（每分鐘檢查 · ${src}${lastUpdated ? " · 資料檔更新於 " + lastUpdated.slice(11, 16) : ""}）`;
+}
+
+/* ---------- betting state ---------- */
+let tickets = store.get("bb_tickets_v1", []);
+let bankInit = store.get("bb_bank_v1", 10000);
+const ui = { game: "basic", stars: 3, nums: new Set(), choice: new Set(), onlyPending: false };
+
+function ticketCost(tk) { return UNIT * tk.units * tk.mult * tk.periods; }
+function settlePeriod(tk, d) {
+  if (tk.game === "basic") {
+    const hits = tk.nums.filter(n => has(d, n)).length;
+    const x = PAY[tk.stars][hits] || 0;
+    return { hits, x, pay: x * UNIT * tk.mult, label: `中 ${hits}` };
+  }
+  if (tk.game === "super") {
+    const ok = tk.nums.includes(d.sup);
+    return { hits: ok ? 1 : 0, x: ok ? 48 : 0, pay: ok ? 48 * UNIT * tk.mult : 0, label: `超級獎號 ${pad(d.sup)}` };
+  }
+  if (tk.game === "bs") {
+    const big = d.nums.filter(n => n > 40).length, small = 20 - big;
+    const res = big >= 13 ? "big" : small >= 13 ? "small" : "none";
+    const win = tk.choice.includes(res);
+    return { hits: win ? 1 : 0, x: win ? 6 : 0, pay: win ? 6 * UNIT * tk.mult : 0, label: `大${big}:小${small}` };
+  }
+  const odd = d.nums.filter(n => n % 2).length, even = 20 - odd;
+  const res = odd >= 13 ? "odd" : even >= 13 ? "even" : "none";
+  const win = tk.choice.includes(res);
+  return { hits: win ? 1 : 0, x: win ? 6 : 0, pay: win ? 6 * UNIT * tk.mult : 0, label: `單${odd}:雙${even}` };
+}
+function evaluate(tk) {
+  const rows = []; let pay = 0, done = 0;
+  for (let i = 0; i < tk.periods; i++) {
+    const t = tk.start + i, d = draws.get(t);
+    if (!d) { rows.push({ t, pending: true }); continue; }
+    const r = settlePeriod(tk, d); pay += r.pay; done++;
+    rows.push({ t, d, ...r });
+  }
+  return { rows, pay, done, pending: tk.periods - done };
+}
+function ledger() {
+  let cost = 0, pay = 0, pendCost = 0, wins = 0, periodsDone = 0;
+  for (const tk of tickets) {
+    const e = evaluate(tk);
+    cost += ticketCost(tk); pay += e.pay;
+    pendCost += UNIT * tk.units * tk.mult * e.pending;
+    periodsDone += e.done; wins += e.rows.filter(r => r.pay > 0).length;
+  }
+  return { cost, pay, pendCost, wins, periodsDone, balance: bankInit - cost + pay };
+}
+
+/* ---------- bet probabilities ---------- */
+function betStats(game, stars) {
+  if (game === "basic") {
+    let p = 0, ev = 0;
+    for (const [m, x] of Object.entries(PAY[stars])) { const q = hyper(stars, +m); p += q; ev += q * x; }
+    let pProfit = 0; for (const [m, x] of Object.entries(PAY[stars])) if (x > 1) pProfit += hyper(stars, +m);
+    return { p, ev, pProfit };
+  }
+  if (game === "super") return { p: 1 / 80, ev: 48 / 80, pProfit: 1 / 80 };
+  return { p: P_BS, ev: 6 * P_BS, pProfit: P_BS };
+}
+
+/* ---------- render: bet slip ---------- */
+function renderStarSeg() {
+  $("#starSeg").innerHTML = Array.from({ length: 10 }, (_, i) =>
+    `<button type="button" data-star="${i + 1}" aria-pressed="${ui.stars === i + 1}">${i + 1}</button>`).join("");
+}
+function maxPick() { return ui.game === "basic" ? ui.stars : ui.game === "super" ? 20 : 0; }
+function renderSlip() {
+  const isNum = ui.game === "basic" || ui.game === "super";
+  $("#basicBox").hidden = ui.game !== "basic";
+  $("#slip").hidden = !isNum; $("#choiceBox").hidden = isNum;
+  document.querySelectorAll("#gameSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.game === ui.game));
+  if (isNum) {
+    const full = ui.nums.size >= maxPick();
+    const R = refStats();
+    $("#slip").innerHTML = Array.from({ length: 80 }, (_, i) => {
+      const n = i + 1, on = ui.nums.has(n), z = R.z[n];
+      const cls = z >= 1 ? "hz" : z <= -1 ? "cz" : "";
+      return `<button type="button" class="${cls}" data-n="${n}" aria-pressed="${on}" ${!on && full ? "disabled" : ""} aria-label="號碼 ${n}，${R.label} ${R.cnt[n]} 次，遺漏 ${R.gap[n]} 期" title="${pad(n)}：${R.label} ${R.cnt[n]} 次（z=${z.toFixed(2)}），遺漏 ${R.gap[n]} 期">${pad(n)}</button>`;
+    }).join("");
+    $("#pickHint").textContent = ui.game === "basic"
+      ? `${ui.stars} 星：請選 ${ui.stars} 個號碼（已選 ${ui.nums.size}）`
+      : `超級獎號：猜本期第 20 顆球，可複選 1–20 個號碼，每個號碼算 1 注（已選 ${ui.nums.size}）`;
+    $("#quickBtn").hidden = false;
+  } else {
+    const opts = ui.game === "bs"
+      ? [["big", "大", "41–80 開出 13 個以上"], ["small", "小", "01–40 開出 13 個以上"]]
+      : [["odd", "單", "單數開出 13 個以上"], ["even", "雙", "雙數開出 13 個以上"]];
+    $("#choiceBox").innerHTML = opts.map(([k, t, s]) =>
+      `<button type="button" data-c="${k}" aria-pressed="${ui.choice.has(k)}">${t}<small>${s}</small></button>`).join("");
+    $("#pickHint").textContent = "可單選或兩邊都買（兩邊都買算 2 注）。開出 12:8 以內兩邊都不中。";
+    $("#quickBtn").hidden = false;
+  }
+  renderRef(); renderBetSummary(); renderOdds();
+}
+
+/* ---------- 連續未開提醒 ---------- */
+const alertTh = Object.assign({ basic: 12, super: 12 }, store.get("bb_alert_th_v1", {}));
+function currentGaps(isSup) { // 以最新一期為準，每個號碼已連續幾期沒開出（或沒當超級獎號）
+  const g = new Array(81).fill(null);
+  let left = 80;
+  for (let i = sorted.length - 1, k = 0; i >= 0 && left; i--, k++) {
+    const d = draws.get(sorted[i]);
+    if (isSup) { if (g[d.sup] == null) { g[d.sup] = k; left--; } }
+    else for (const n of d.nums) if (g[n] == null) { g[n] = k; left--; }
+  }
+  for (let n = 1; n <= 80; n++) if (g[n] == null) g[n] = sorted.length; // 整份資料都沒出現
+  return g;
+}
+function alertList(isSup) {
+  const th = isSup ? alertTh.super : alertTh.basic, g = currentGaps(isSup);
+  return Array.from({ length: 80 }, (_, i) => i + 1).filter(n => g[n] >= th).sort((a, b) => g[b] - g[a]).map(n => ({ n, gap: g[n], isNew: g[n] === th }));
+}
+function renderAlerts() {
+  $("#thBasic").value = alertTh.basic; $("#thSuper").value = alertTh.super;
+  const L = latest(), ld = draws.get(L);
+  $("#alertHint").textContent = `以最新一期 ${L}（${ld.date.slice(5)} ${drawTime(ld)}）為準 · 點號碼可直接選入選號單 · 金框＝這一期剛達到門檻`;
+  const chips = (list, game, p) => list.length ? list.map(a => {
+    const on = ui.game === game && ui.nums.has(a.n);
+    return `<button type="button" class="rchip g ${a.isNew ? "new" : ""}" data-an="${a.n}" data-ag="${game}" aria-pressed="${on}" title="事前機率 ${(Math.pow(p, a.gap) * 100).toFixed(a.gap > 30 ? 3 : 1)}%"><b>${pad(a.n)}</b><small>${a.gap}期</small>${a.isNew ? "<em>新</em>" : ""}</button>`;
+  }).join("") : `<span class="note" style="margin:0">目前沒有號碼達到門檻。</span>`;
+  const B = alertList(false), S = alertList(true);
+  $("#cntBasic").textContent = B.length + " 個"; $("#cntSuper").textContent = S.length + " 個";
+  $("#alertBasic").innerHTML = chips(B, "basic", 0.75);
+  $("#alertSuper").innerHTML = chips(S, "super", 79 / 80);
+  const eB = 80 * Math.pow(0.75, alertTh.basic), eS = 80 * Math.pow(79 / 80, alertTh.super);
+  $("#alertNote").innerHTML = `備註：一個號碼連續 ${alertTh.basic} 期沒開出的事前機率是 (3/4)^${alertTh.basic} ＝ ${(Math.pow(0.75, alertTh.basic) * 100).toFixed(2)}%，80 個號碼裡平均隨時約有 ${eB.toFixed(1)} 個會在名單上。
+    超級獎號每期只有 1 個號碼，連續 ${alertTh.super} 期沒當的機率是 (79/80)^${alertTh.super} ＝ ${(Math.pow(79 / 80, alertTh.super) * 100).toFixed(1)}%，平均約 ${eS.toFixed(0)} 個號碼會在名單上${eS > 20 ? `；想只看真正少見的情況，門檻可以改成 180 左右（約 10%）` : ""}。
+    已經沒開的期數不會讓下一期比較容易開出：基本玩法仍是 1/4，超級獎號仍是 1/80。`;
+  const tab = document.querySelector('nav.tabs button[data-tab="bet"]');
+  tab.innerHTML = `模擬投注${B.length ? `<span class="badge" title="基本玩法有 ${B.length} 個號碼連續 ${alertTh.basic} 期以上未開出">${B.length}</span>` : ""}`;
+}
+function alertSummary() {
+  const B = alertList(false).filter(a => a.isNew), S = alertList(true).filter(a => a.isNew);
+  const parts = [];
+  if (B.length) parts.push(`基本玩法 ${B.map(a => pad(a.n)).join("、")} 剛達到連續 ${alertTh.basic} 期未開出`);
+  if (S.length) parts.push(`超級獎號 ${S.map(a => pad(a.n)).join("、")} 剛達到連續 ${alertTh.super} 期未當超級獎號`);
+  return parts.length ? "提醒：" + parts.join("；") + "。" : "";
+}
+
+/* ---------- 冷熱參考（投注頁） ---------- */
+const REF_WINS = { basic: [[50, "50 期"], [100, "100 期"], [203, "203 期"], [1421, "一週"]], super: [[203, "203 期"], [609, "3 天"], [0, "全部"]], bs: [[20, "20 期"], [50, "50 期"]], oe: [[20, "20 期"], [50, "50 期"]] };
+const refWin = { basic: 100, super: 0, bs: 20, oe: 20 };
+function refStats() {
+  const isSup = ui.game === "super";
+  const w = refWin[isSup ? "super" : "basic"];
+  const R = w ? sorted.slice(-w) : sorted.slice(), N = R.length;
+  const cnt = new Array(81).fill(0), gap = new Array(81).fill(N);
+  R.forEach((t, i) => {
+    const d = draws.get(t);
+    if (isSup) { cnt[d.sup]++; gap[d.sup] = N - 1 - i; }
+    else for (const n of d.nums) { cnt[n]++; gap[n] = N - 1 - i; }
+  });
+  // 遺漏若超出範圍，往前在全部資料裡找
+  const start = sorted.length - N;
+  for (let n = 1; n <= 80; n++) if (gap[n] === N) {
+    let g = N; for (let i = start - 1; i >= 0; i--) { const d = draws.get(sorted[i]); if (isSup ? d.sup === n : has(d, n)) break; g++; } gap[n] = g;
+  }
+  const p = isSup ? 1 / 80 : 1 / 4, mu = N * p, sd = Math.sqrt(N * p * (1 - p)) || 1;
+  const z = cnt.map(c => (c - mu) / sd);
+  return { N, cnt, gap, z, mu, sd, label: isSup ? "當超級獎號" : "開出", p };
+}
+function renderRef() {
+  document.querySelectorAll("#alertPanel button[data-an]").forEach(b => b.setAttribute("aria-pressed", ui.game === b.dataset.ag && ui.nums.has(+b.dataset.an)));
+  const g = ui.game, box = $("#refBox");
+  $("#refSeg").innerHTML = REF_WINS[g].map(([w, l]) => `<button type="button" data-w="${w}" aria-pressed="${refWin[g] === w}">${l}</button>`).join("");
+  if (g === "bs" || g === "oe") {
+    const n = refWin[g], R = sorted.slice(-n);
+    let a = 0, b = 0;
+    const pills = R.slice().reverse().map(t => {
+      const d = draws.get(t);
+      const k = g === "bs" ? d.nums.filter(x => x > 40).length : d.nums.filter(x => x % 2).length;
+      const res = k >= 13 ? (g === "bs" ? "大" : "單") : 20 - k >= 13 ? (g === "bs" ? "小" : "雙") : "－";
+      if (res === "大" || res === "單") a++; else if (res !== "－") b++;
+      return `<span class="pill ${res === "－" ? "lose" : res === "大" || res === "單" ? "hot" : "cold"}" title="${t}">${res}</span>`;
+    }).join("");
+    $("#refNote").textContent = `最近 ${n} 期：${g === "bs" ? "大" : "單"} ${a} 次、${g === "bs" ? "小" : "雙"} ${b} 次、都不中 ${n - a - b} 次（理論各約 ${(n * P_BS).toFixed(1)} / ${(n * P_BS).toFixed(1)} / ${(n * (1 - 2 * P_BS)).toFixed(1)}）`;
+    $("#refRows").innerHTML = `<div class="ref-row"><span>由新到舊</span><div class="ref-chips">${pills}</div></div>`;
+    return;
+  }
+  const S = refStats(), full = ui.nums.size >= maxPick();
+  const ids = Array.from({ length: 80 }, (_, i) => i + 1);
+  const hot = ids.slice().sort((a, b) => S.cnt[b] - S.cnt[a] || S.gap[a] - S.gap[b]).slice(0, 10);
+  const cold = ids.slice().sort((a, b) => S.cnt[a] - S.cnt[b] || S.gap[b] - S.gap[a]).slice(0, 10);
+  const gap = ids.slice().sort((a, b) => S.gap[b] - S.gap[a]).slice(0, 10);
+  const chip = (n, cls, sub) => {
+    const on = ui.nums.has(n);
+    return `<button type="button" class="rchip ${cls}" data-rn="${n}" aria-pressed="${on}" ${!on && full ? "disabled" : ""}><b>${pad(n)}</b><small>${sub}</small></button>`;
+  };
+  const want = g === "basic" ? ui.stars : Math.max(1, Math.min(20, ui.nums.size || 3));
+  $("#refNote").textContent = `最近 ${fmt(S.N)} 期，每號平均${S.label} ${S.mu.toFixed(1)} 次（σ ${S.sd.toFixed(1)}）。號碼格右上角紅點＝熱、藍點＝冷。`;
+  $("#refRows").innerHTML = `
+    <div class="ref-row"><span style="color:var(--hot)">熱號</span><div class="ref-chips">${hot.map(n => chip(n, "h", S.cnt[n] + "次")).join("")}</div></div>
+    <div class="ref-row"><span style="color:var(--cold)">冷號</span><div class="ref-chips">${cold.map(n => chip(n, "c", S.cnt[n] + "次")).join("")}</div></div>
+    <div class="ref-row"><span style="color:var(--pending)">遺漏最久</span><div class="ref-chips">${gap.map(n => chip(n, "g", S.gap[n] + "期")).join("")}</div></div>
+    <div class="ref-acts">
+      <button type="button" class="btn small" data-fill="hot">帶入熱號前 ${want} 個</button>
+      <button type="button" class="btn small" data-fill="cold">帶入冷號前 ${want} 個</button>
+      <button type="button" class="btn small" data-fill="gap">帶入遺漏前 ${want} 個</button>
+      <button type="button" class="btn small" data-fill="mix">熱冷各半</button>
+    </div>
+    <p class="note" style="margin:0">冷熱只是過去的紀錄，下一期每個號碼${g === "super" ? "當超級獎號的機率都是 1/80" : "開出的機率都是 1/4"}，選哪一組中獎率都一樣。</p>`;
+  box._lists = { hot, cold, gap, want };
+}
+function currentUnits() {
+  if (ui.game === "basic") return ui.nums.size === ui.stars ? 1 : 0;
+  if (ui.game === "super") return ui.nums.size;
+  return ui.choice.size;
+}
+function renderStartSel() {
+  const sel = $("#startSel"), prev = sel.value;
+  const L = latest();
+  const opts = [`<option value="${L + 1}">下一期 ${L + 1}（尚未開獎）</option>`];
+  const recent = sorted.slice(-203).reverse();
+  for (const t of recent) {
+    const d = draws.get(t);
+    opts.push(`<option value="${t}">回測 ${t} · ${d.date.slice(5)} ${drawTime(d)}</option>`);
+  }
+  sel.innerHTML = opts.join("");
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+function renderBetSummary() {
+  const mult = clampInt($("#mult").value, 1, 50), periods = clampInt($("#periods").value, 1, 203);
+  const units = currentUnits();
+  const cost = UNIT * units * mult * periods;
+  $("#costVal").textContent = fmt(cost);
+  const s = betStats(ui.game, ui.stars);
+  if (ui.game === "super" && units) {
+    $("#probVal").textContent = (units / 80 * 100).toFixed(2) + "%";
+  } else $("#probVal").textContent = (s.p * 100).toFixed(2) + "%";
+  $("#evVal").textContent = units ? fmt(cost * (ui.game === "basic" || ui.game === "super" ? s.ev : s.ev)) + " 元（" + (s.ev * 100).toFixed(1) + "%）" : "—";
+  const bal = ledger().balance;
+  let err = "";
+  if (!units) err = ui.game === "basic" ? `還要再選 ${ui.stars - ui.nums.size} 個號碼` : "請先選號";
+  else if (cost > bal) err = `模擬資金不足（剩 ${fmt(bal)} 元）`;
+  $("#placeBtn").disabled = !!err;
+  $("#placeErr").hidden = !err || !units; $("#placeErr").textContent = err;
+}
+function clampInt(v, a, b) { v = Math.round(+v || a); return Math.max(a, Math.min(b, v)); }
+function renderOdds() {
+  const t = $("#oddsTbl");
+  if (ui.game === "basic") {
+    const k = ui.stars, rows = Object.entries(PAY[k]).sort((a, b) => b[0] - a[0]);
+    let html = "<tr><th>對中</th><th>倍數</th><th>單注獎金</th><th>機率</th></tr>";
+    for (const [m, x] of rows) html += `<tr><td>中 ${m}${x === 1 ? "（回本）" : ""}</td><td class="num">${fmt(x)}</td><td class="num">$${fmt(x * UNIT)}</td><td class="num">${(hyper(k, +m) * 100).toFixed(m >= 6 ? 4 : 2)}%</td></tr>`;
+    t.innerHTML = html;
+    const s = betStats("basic", k);
+    $("#oddsNote").textContent = `總中獎率 ${(s.p * 100).toFixed(2)}%（約 1/${(1 / s.p).toFixed(2)}），扣掉回本後真正有賺 ${(s.pProfit * 100).toFixed(2)}%；每投 100 元理論上拿回 ${(s.ev * 100).toFixed(1)} 元。`;
+  } else if (ui.game === "super") {
+    t.innerHTML = `<tr><th>對中</th><th>倍數</th><th>單注獎金</th><th>機率</th></tr><tr><td>猜中第 20 顆球</td><td class="num">48</td><td class="num">$1,200</td><td class="num">1.25%</td></tr>`;
+    $("#oddsNote").textContent = "每個號碼算 1 注。每投 100 元理論上拿回 60 元。";
+  } else {
+    const [a, b] = ui.game === "bs" ? ["大（41–80 ≥ 13 個）", "小（01–40 ≥ 13 個）"] : ["單（單數 ≥ 13 個）", "雙（雙數 ≥ 13 個）"];
+    t.innerHTML = `<tr><th>對中</th><th>倍數</th><th>單注獎金</th><th>機率</th></tr>
+      <tr><td>${a}</td><td class="num">6</td><td class="num">$150</td><td class="num">${(P_BS * 100).toFixed(2)}%</td></tr>
+      <tr><td>${b}</td><td class="num">6</td><td class="num">$150</td><td class="num">${(P_BS * 100).toFixed(2)}%</td></tr>`;
+    $("#oddsNote").textContent = `每投 100 元理論上拿回 ${(6 * P_BS * 100).toFixed(1)} 元。兩邊都買也一樣，因為大部分期數是 8:12 到 12:8 之間。`;
+  }
+}
+
+/* ---------- render: tickets & ledger ---------- */
+const GAME_NAME = { basic: "基本玩法", super: "超級獎號", bs: "猜大小", oe: "猜單雙" };
+const CHOICE_NAME = { big: "大", small: "小", odd: "單", even: "雙" };
+function renderTickets() {
+  const L = ledger();
+  $("#bankVal").textContent = fmt(L.balance) + " 元";
+  const net = L.pay - (L.cost - L.pendCost);
+  const ret = L.cost - L.pendCost > 0 ? L.pay / (L.cost - L.pendCost) * 100 : 0;
+  $("#ledger").innerHTML = `
+    <span>起始 <span class="num">${fmt(bankInit)}</span></span>
+    <span>已對獎投入 <span class="num">${fmt(L.cost - L.pendCost)}</span></span>
+    <span>獎金 <span class="num">${fmt(L.pay)}</span></span>
+    <span>淨損益 <span class="num" style="color:${net >= 0 ? "var(--win)" : "var(--lose)"}">${net >= 0 ? "+" : ""}${fmt(net)}</span></span>
+    <span>回收率 <span class="num">${ret.toFixed(1)}%</span></span>
+    <span>待開獎 <span class="num">${fmt(L.pendCost)}</span></span>`;
+  $("#ledgerHint").textContent = `${tickets.length} 張 · 已對 ${L.periodsDone} 期 · 中獎 ${L.wins} 次`;
+  $("#settleAllBtn").textContent = ui.onlyPending ? "顯示全部" : "只看待開獎";
+  const list = tickets.slice().reverse().filter(tk => !ui.onlyPending || evaluate(tk).pending > 0);
+  if (!list.length) {
+    $("#tickets").innerHTML = `<div class="empty">${tickets.length ? "沒有待開獎的投注。" : "還沒有投注。在上方選號後按「下注」，可以選下一期等開獎，或選過去的期別直接回測。"}</div>`;
+    return;
+  }
+  $("#tickets").innerHTML = list.map(tk => {
+    const e = evaluate(tk), cost = ticketCost(tk);
+    const what = tk.game === "basic" ? `${tk.stars} 星` : tk.game === "super" ? `${tk.nums.length} 個號碼` : tk.choice.map(c => CHOICE_NAME[c]).join("＋");
+    const status = e.pending === tk.periods ? `<span class="pill pend">待開獎</span>`
+      : e.pay > 0 ? `<span class="pill win">中 ${fmt(e.pay)} 元</span>` : `<span class="pill lose">未中獎</span>`;
+    const balls = tk.nums ? `<div class="balls">${tk.nums.map(n => `<span class="ball">${pad(n)}</span>`).join("")}</div>` : "";
+    const rows = e.rows.map(r => r.pending
+      ? `<div class="prow"><span class="mono">${r.t}</span><span class="note" style="margin:0">尚未開獎</span><span class="pill pend">待開獎</span></div>`
+      : `<div class="prow"><span class="mono">${r.t}</span><span class="balls">${tk.nums ? tk.nums.map(n => `<span class="ball ${has(r.d, n) ? "hit" : ""} ${tk.game === "super" && n === r.d.sup ? "sup" : ""}">${pad(n)}</span>`).join("") : `<span class="note" style="margin:0">${r.label}</span>`}</span>${r.pay ? `<span class="pill win">+${fmt(r.pay)}</span>` : `<span class="pill lose">${tk.game === "basic" ? r.label : "—"}</span>`}</div>`).join("");
+    return `<article class="ticket">
+      <div class="top"><b>${GAME_NAME[tk.game]} · ${what}</b>${status}</div>
+      ${balls}
+      <div class="meta">${tk.start}${tk.periods > 1 ? "–" + (tk.start + tk.periods - 1) : ""} 共 ${tk.periods} 期 · ${tk.mult} 倍 · 投入 ${fmt(cost)} 元 · 已對 ${e.done}/${tk.periods} 期</div>
+      <details ${tk.periods <= 3 ? "open" : ""}><summary>逐期對獎</summary><div class="periods">${rows}</div></details>
+    </article>`;
+  }).join("");
+}
+
+/* ---------- render: records ---------- */
+let recLimit = 60;
+const heatCache = new Map();
+function heatAt(t, win = 100) { // z-score of each number over the `win` draws before t
+  const key = t + ":" + win; if (heatCache.has(key)) return heatCache.get(key);
+  const idx = sorted.indexOf(t); const from = Math.max(0, idx - win);
+  const n = idx - from; const cnt = new Array(81).fill(0);
+  for (let i = from; i < idx; i++) for (const x of draws.get(sorted[i]).nums) cnt[x]++;
+  const mu = n / 4, sd = Math.sqrt(n * 3 / 16) || 1;
+  const z = cnt.map(c => (c - mu) / sd);
+  const res = { n, z }; heatCache.set(key, res); return res;
+}
+function renderRecDates() {
+  const ds = datesDesc();
+  for (const id of ["#recDate", "#anaDate", "#supDate", "#bsoDate"]) {
+    const sel = $(id), prev = sel.value;
+    sel.innerHTML = (id !== "#recDate" ?`<option value="">—</option>` : "") + ds.map(d => `<option value="${d}">${d}（${sorted.filter(t => draws.get(t).date === d).length} 期）</option>`).join("");
+    if (prev && ds.includes(prev)) sel.value = prev;
+  }
+}
+function renderRecords() {
+  const date = $("#recDate").value, q = $("#recSearch").value.trim();
+  let list = sorted.filter(t => draws.get(t).date === date).reverse();
+  if (q) {
+    if (/^\d{6,}$/.test(q)) list = sorted.filter(t => String(t).includes(q)).reverse();
+    else { const n = +q; if (n >= 1 && n <= 80) list = list.filter(t => has(draws.get(t), n)); }
+  }
+  const shown = list.slice(0, recLimit);
+  $("#recMore").hidden = list.length <= recLimit;
+  if (!shown.length) { $("#records").innerHTML = `<div class="empty">沒有符合的期別。</div>`; return; }
+  $("#records").innerHTML = shown.map(t => {
+    const d = draws.get(t), h = heatAt(t);
+    const big = d.nums.filter(n => n > 40).length, odd = d.nums.filter(n => n % 2).length;
+    const sum = d.nums.reduce((a, b) => a + b, 0);
+    let hot = 0, cold = 0;
+    const balls = d.nums.map(n => {
+      const z = h.n >= 40 ? h.z[n] : 0; const cls = z >= 1 ? "h" : z <= -1 ? "c" : "";
+      if (cls === "h") hot++; if (cls === "c") cold++;
+      return `<span class="ball ${cls} ${n === d.sup ? "sup" : ""}" title="${pad(n)}：前 ${h.n} 期 z=${z.toFixed(2)}">${pad(n)}</span>`;
+    }).join("");
+    const bs = big >= 13 ? "大" : 20 - big >= 13 ? "小" : "－", oe = odd >= 13 ? "單" : 20 - odd >= 13 ? "雙" : "－";
+    return `<div class="rec">
+      <div class="when"><b>${t}</b><br>${d.date.slice(5)} ${drawTime(d)}</div>
+      <div class="balls">${balls}</div>
+      <div class="side">
+        <span class="pill lose">大小 ${bs}</span><span class="pill lose">單雙 ${oe}</span>
+        <span class="mono" style="color:var(--muted)">和 ${sum}</span>
+        ${h.n >= 40 ? `<span class="pill hot">熱 ${hot}</span><span class="pill cold">冷 ${cold}</span>` : ""}
+        <button class="btn small" type="button" data-bt="${t}">從此期回測</button>
+      </div></div>`;
+  }).join("");
+}
+
+/* ---------- render: analysis ---------- */
+let anaWin = 203;
+const WINS = [[20, "20 期"], [50, "50 期"], [100, "100 期"], [203, "203 期（一天）"], [1421, "一週"], [0, "全部"]];
+function anaRange() {
+  const d = $("#anaDate").value;
+  if (d) return sorted.filter(t => draws.get(t).date === d);
+  return anaWin ? sorted.slice(-anaWin) : sorted.slice();
+}
+function normInv(p) { // Acklam approximation not needed; use for p-value via erfc
+  return p;
+}
+function erfc(x) { const t = 1 / (1 + 0.5 * Math.abs(x)); const y = t * Math.exp(-x * x - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))))); return x >= 0 ? y : 2 - y; }
+function chiP(x, k) { // Wilson–Hilferty upper tail
+  const z = (Math.cbrt(x / k) - (1 - 2 / (9 * k))) / Math.sqrt(2 / (9 * k));
+  return 0.5 * erfc(z / Math.SQRT2);
+}
+function renderAnalysis() {
+  document.querySelectorAll("#winSeg button").forEach(b => b.setAttribute("aria-pressed", !$("#anaDate").value && +b.dataset.w === anaWin));
+  const R = anaRange(), N = R.length;
+  if (N < 5) { $("#statTiles").innerHTML = `<div class="empty">資料太少，無法分析。</div>`; return; }
+  const cnt = new Array(81).fill(0), lastSeen = new Array(81).fill(-1);
+  const bigHist = new Array(21).fill(0);
+  R.forEach((t, i) => { const d = draws.get(t); for (const n of d.nums) { cnt[n]++; lastSeen[n] = i; } bigHist[d.nums.filter(n => n > 40).length]++; });
+  // 遺漏：從整份資料最後一期往回算
+  const gapAll = new Array(81).fill(null);
+  for (let n = 1; n <= 80; n++) { let g = 0; for (let i = sorted.length - 1; i >= 0; i--) { if (has(draws.get(sorted[i]), n)) break; g++; } gapAll[n] = g; }
+  const mu = N / 4, sdT = Math.sqrt(N * 3 / 16);
+  const c80 = cnt.slice(1);
+  const mean = c80.reduce((a, b) => a + b, 0) / 80;
+  const sdO = Math.sqrt(c80.reduce((a, b) => a + (b - mean) ** 2, 0) / 79);
+  const chi = c80.reduce((a, b) => a + (b - mu) ** 2, 0) / (N * 0.1875 * 80 / 79);
+  const p = chiP(chi, 79);
+  const maxC = Math.max(...c80), minC = Math.min(...c80);
+  const first = draws.get(R[0]), last = draws.get(R[N - 1]);
+  $("#winNote").textContent = `${R[0]}（${first.date} ${drawTime(first)}）到 ${R[N - 1]}（${last.date} ${drawTime(last)}），共 ${N} 期。`;
+  const verdict = p < 0.01 ? "分布不太均勻（p<0.01）" : p < 0.05 ? "略偏不均（p<0.05）" : "與完全隨機一致";
+  $("#statTiles").innerHTML = `
+    <div class="stat"><div class="k">期數 N</div><div class="v">${fmt(N)}</div><div class="s">開出 ${fmt(N * 20)} 顆球</div></div>
+    <div class="stat"><div class="k">每號期望次數 N/4</div><div class="v">${mu.toFixed(1)}</div><div class="s">實際平均 ${mean.toFixed(1)}</div></div>
+    <div class="stat"><div class="k">理論標準差 √(N·3/16)</div><div class="v">${sdT.toFixed(2)}</div><div class="s">±1σ：${(mu - sdT).toFixed(1)}–${(mu + sdT).toFixed(1)} 次</div></div>
+    <div class="stat"><div class="k">實際標準差（80 個號碼）</div><div class="v">${sdO.toFixed(2)}</div><div class="s">是理論值的 ${(sdO / sdT * 100).toFixed(0)}%</div></div>
+    <div class="stat"><div class="k">最多 / 最少</div><div class="v">${maxC} / ${minC}</div><div class="s">差 ${maxC - minC} 次 · ${((maxC - mu) / sdT).toFixed(1)}σ / ${((minC - mu) / sdT).toFixed(1)}σ</div></div>
+    <div class="stat"><div class="k">卡方檢定（自由度 79）</div><div class="v">${chi.toFixed(1)}</div><div class="s">p = ${p.toFixed(3)} · ${verdict}</div></div>`;
+  // heat grid
+  $("#heat").innerHTML = c80.map((c, i) => {
+    const z = (c - mu) / sdT, a = Math.min(1, Math.abs(z) / 2.5);
+    const col = z >= 0 ? "var(--hot)" : "var(--cold)";
+    const strong = Math.abs(z) >= 1;
+    const style = strong ? `background:${col};color:#fff;border-color:${col}` : `background:color-mix(in srgb, ${col} ${Math.round(a * 35)}%, var(--paper))`;
+    return `<div class="cell" style="${style}" title="${pad(i + 1)}：${c} 次，z=${z.toFixed(2)}"><div class="n">${pad(i + 1)}</div><div class="c">${c}</div></div>`;
+  }).join("");
+  // lists
+  const ids = Array.from({ length: 80 }, (_, i) => i + 1);
+  const hot = ids.slice().sort((a, b) => cnt[b] - cnt[a]).slice(0, 10);
+  const cold = ids.slice().sort((a, b) => cnt[a] - cnt[b]).slice(0, 10);
+  const gap = ids.slice().sort((a, b) => gapAll[b] - gapAll[a]).slice(0, 10);
+  const pGap = g => Math.pow(0.75, g);
+  const tbl = (title, arr, col) => `<div><h2 style="font-size:14px">${title}</h2><table class="rank"><tr><th>號碼</th>${col.map(c => `<th>${c[0]}</th>`).join("")}</tr>${arr.map(n => `<tr><td class="num"><b>${pad(n)}</b></td>${col.map(c => `<td class="num">${c[1](n)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+  $("#lists").innerHTML =
+    tbl("熱號前 10", hot, [["次數", n => cnt[n]], ["z", n => ((cnt[n] - mu) / sdT).toFixed(2)]]) +
+    tbl("冷號前 10", cold, [["次數", n => cnt[n]], ["z", n => ((cnt[n] - mu) / sdT).toFixed(2)]]) +
+    tbl("目前連續未開（遺漏）", gap, [["期數", n => gapAll[n]], ["事前機率", n => (pGap(gapAll[n]) * 100).toFixed(pGap(gapAll[n]) < 0.01 ? 3 : 1) + "%"]]);
+  renderHist(c80, mu, sdT);
+  renderBig(bigHist, N);
+  $("#explain").innerHTML = `
+    這段期間每個號碼平均應出現 <b class="num">${mu.toFixed(1)}</b> 次，標準差 <b class="num">${sdT.toFixed(2)}</b>。
+    只要號碼完全隨機，大約 68% 的號碼（約 54 個）會落在 ±1σ 內，被標成冷號或熱號的通常各有 12–13 個，這是正常現象。
+    實際的標準差 ${sdO.toFixed(2)} 與理論值 ${sdT.toFixed(2)} 很接近時，代表冷熱差距完全可以用運氣解釋；卡方檢定的 p 值越小才越可疑（一般以 0.05 為門檻），這裡是 ${p.toFixed(3)}。
+    「遺漏」表格的事前機率是 (3/4)^期數，但已經遺漏的期數不會讓下一期比較容易開出，下一期仍然是 25%。`;
+}
+function renderHist(c80, mu, sd) {
+  const lo = Math.max(0, Math.floor(mu - 4 * sd)), hi = Math.ceil(mu + 4 * sd);
+  const bins = Math.min(24, hi - lo + 1), w = (hi - lo + 1) / bins;
+  const h = new Array(bins).fill(0);
+  for (const c of c80) h[Math.min(bins - 1, Math.max(0, Math.floor((c - lo) / w)))]++;
+  const W = 560, H = 220, L = 34, B = 30, T = 10, Rr = 10;
+  const pw = W - L - Rr, ph = H - B - T;
+  const pdf = x => 80 * w / (sd * Math.sqrt(2 * Math.PI)) * Math.exp(-((x - mu) ** 2) / (2 * sd * sd));
+  const yMax = Math.max(...h, pdf(mu)) * 1.15;
+  const X = x => L + (x - lo) / (hi + 1 - lo) * pw, Y = y => T + ph - y / yMax * ph;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="出現次數分布">`;
+  const step = yMax > 20 ? 5 : 2;
+  for (let y = 0; y <= yMax; y += step) s += `<line x1="${L}" x2="${W - Rr}" y1="${Y(y)}" y2="${Y(y)}" stroke="var(--line)"/><text x="${L - 6}" y="${Y(y) + 4}" text-anchor="end">${y}</text>`;
+  h.forEach((v, i) => {
+    const x0 = lo + i * w, mid = x0 + w / 2;
+    const z = (mid - 0.5 - mu) / sd;
+    const col = z >= 1 ? "var(--hot)" : z <= -1 ? "var(--cold)" : "var(--muted)";
+    s += `<rect x="${X(x0) + 1}" y="${Y(v)}" width="${Math.max(1, X(x0 + w) - X(x0) - 2)}" height="${Y(0) - Y(v)}" fill="${col}" opacity=".75"><title>${Math.round(x0)}–${Math.round(x0 + w - 1)} 次：${v} 個號碼</title></rect>`;
+  });
+  let d = ""; for (let i = 0; i <= 120; i++) { const x = lo + (hi + 1 - lo) * i / 120; d += (i ? "L" : "M") + X(x).toFixed(1) + " " + Y(pdf(x - 0.5)).toFixed(1); }
+  s += `<path d="${d}" fill="none" stroke="var(--slip)" stroke-width="2"/>`;
+  s += `<line x1="${X(mu + 0.5)}" x2="${X(mu + 0.5)}" y1="${T}" y2="${Y(0)}" stroke="var(--ink)" stroke-dasharray="3 3"/>`;
+  const tickStep = Math.max(1, Math.round((hi - lo) / 8));
+  for (let x = lo; x <= hi; x += tickStep) s += `<text x="${X(x + 0.5)}" y="${H - 10}" text-anchor="middle">${x}</text>`;
+  s += `</svg>`;
+  $("#histChart").innerHTML = s;
+}
+function renderBig(hist, N) {
+  const W = 560, H = 220, L = 34, B = 30, T = 10, Rr = 10, pw = W - L - Rr, ph = H - B - T;
+  const lo = 4, hi = 16;
+  const exp = k => N * comb(40, k) * comb(40, 20 - k) / comb(80, 20);
+  let yMax = 0; for (let k = lo; k <= hi; k++) yMax = Math.max(yMax, hist[k], exp(k)); yMax *= 1.15;
+  const bw = pw / (hi - lo + 1), X = k => L + (k - lo) * bw, Y = y => T + ph - y / yMax * ph;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="大號個數分布">`;
+  const step = Math.max(1, Math.ceil(yMax / 5 / 5) * 5);
+  for (let y = 0; y <= yMax; y += step) s += `<line x1="${L}" x2="${W - Rr}" y1="${Y(y)}" y2="${Y(y)}" stroke="var(--line)"/><text x="${L - 6}" y="${Y(y) + 4}" text-anchor="end">${y}</text>`;
+  for (let k = lo; k <= hi; k++) {
+    const v = hist[k] + (k === lo ? hist.slice(0, lo).reduce((a, b) => a + b, 0) : 0) + (k === hi ? hist.slice(hi + 1).reduce((a, b) => a + b, 0) : 0);
+    const col = k >= 13 ? "var(--hot)" : k <= 7 ? "var(--cold)" : "var(--muted)";
+    s += `<rect x="${X(k) + 3}" y="${Y(v)}" width="${bw - 6}" height="${Y(0) - Y(v)}" fill="${col}" opacity=".75"><title>大號 ${k} 個：${v} 期（理論 ${exp(k).toFixed(1)}）</title></rect>`;
+    s += `<circle cx="${X(k) + bw / 2}" cy="${Y(exp(k))}" r="3.5" fill="var(--slip)"/>`;
+    s += `<text x="${X(k) + bw / 2}" y="${H - 10}" text-anchor="middle">${k}</text>`;
+  }
+  s += `</svg>`;
+  $("#bigChart").innerHTML = s;
+}
+
+/* ---------- render: super number ---------- */
+let supWin = 0;
+const SUP_WINS = [[203, "203 期（一天）"], [609, "3 天"], [1421, "一週"], [0, "全部"]];
+function supRange() {
+  const d = $("#supDate").value;
+  if (d) return sorted.filter(t => draws.get(t).date === d);
+  return supWin ? sorted.slice(-supWin) : sorted.slice();
+}
+function barChart(el, labels, actual, expected, colorOf, label) {
+  const W = 560, H = 220, L = 34, B = 30, T = 10, Rr = 10, pw = W - L - Rr, ph = H - B - T;
+  const n = labels.length, yMax = Math.max(...actual, ...expected) * 1.18 || 1;
+  const bw = pw / n, X = i => L + i * bw, Y = y => T + ph - y / yMax * ph;
+  const raw = yMax / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = Math.max(1, [1, 2, 5, 10].map(m => m * mag).find(s => s >= raw));
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}">`;
+  for (let y = 0; y <= yMax; y += step) s += `<line x1="${L}" x2="${W - Rr}" y1="${Y(y)}" y2="${Y(y)}" stroke="var(--line)"/><text x="${L - 6}" y="${Y(y) + 4}" text-anchor="end">${y}</text>`;
+  labels.forEach((lb, i) => {
+    s += `<rect x="${X(i) + 4}" y="${Y(actual[i])}" width="${bw - 8}" height="${Y(0) - Y(actual[i])}" fill="${colorOf(i)}" opacity=".8"><title>${lb}：${actual[i]} 次（理論 ${expected[i].toFixed(1)}）</title></rect>`;
+    s += `<circle cx="${X(i) + bw / 2}" cy="${Y(expected[i])}" r="3.5" fill="var(--slip)"/>`;
+    s += `<text x="${X(i) + bw / 2}" y="${H - 10}" text-anchor="middle">${lb}</text>`;
+  });
+  el.innerHTML = s + `</svg>`;
+}
+function supGaps() { // 每個號碼距離上次當超級獎號已經幾期（以整份資料最後一期為準）
+  const g = new Array(81).fill(null);
+  for (let n = 1; n <= 80; n++) { let k = 0; for (let i = sorted.length - 1; i >= 0; i--) { if (draws.get(sorted[i]).sup === n) break; k++; } g[n] = k; }
+  return g;
+}
+function renderSuper() {
+  document.querySelectorAll("#supWinSeg button").forEach(b => b.setAttribute("aria-pressed", !$("#supDate").value && +b.dataset.w === supWin));
+  const R = supRange(), N = R.length;
+  if (N < 20) { $("#supTiles").innerHTML = `<div class="empty">資料太少，無法分析。</div>`; return; }
+  const cnt = new Array(81).fill(0);
+  R.forEach(t => cnt[draws.get(t).sup]++);
+  const c80 = cnt.slice(1), p = 1 / 80;
+  const mu = N * p, sdT = Math.sqrt(N * p * (1 - p));
+  const meanO = c80.reduce((a, b) => a + b, 0) / 80;
+  const sdO = Math.sqrt(c80.reduce((a, b) => a + (b - meanO) ** 2, 0) / 79);
+  const chi = c80.reduce((a, b) => a + (b - mu) ** 2 / mu, 0);
+  const pv = chiP(chi, 79);
+  const gaps = supGaps();
+  // 連莊：同號連續兩期當超級獎號
+  let repeats = 0; for (let i = 1; i < N; i++) if (draws.get(R[i]).sup === draws.get(R[i - 1]).sup) repeats++;
+  const neverIn = c80.filter(c => c === 0).length;
+  const expZero = 80 * Math.pow(1 - p, N);
+  const first = draws.get(R[0]), last = draws.get(R[N - 1]);
+  $("#supWinNote").textContent = `${R[0]}（${first.date} ${drawTime(first)}）到 ${R[N - 1]}（${last.date} ${drawTime(last)}），共 ${N} 期。`;
+  $("#supTiles").innerHTML = `
+    <div class="stat"><div class="k">期數 N</div><div class="v">${fmt(N)}</div><div class="s">每號期望 N/80 = ${mu.toFixed(2)} 次</div></div>
+    <div class="stat"><div class="k">理論標準差 √(N·1/80·79/80)</div><div class="v">${sdT.toFixed(2)}</div><div class="s">實際標準差 ${sdO.toFixed(2)}（${(sdO / sdT * 100).toFixed(0)}%）</div></div>
+    <div class="stat"><div class="k">最多 / 最少</div><div class="v">${Math.max(...c80)} / ${Math.min(...c80)}</div><div class="s">從沒當過 ${neverIn} 個（理論約 ${expZero.toFixed(1)} 個）</div></div>
+    <div class="stat"><div class="k">卡方檢定（自由度 79）</div><div class="v">${chi.toFixed(1)}</div><div class="s">p = ${pv.toFixed(3)} · ${pv < 0.01 ? "分布不太均勻" : pv < 0.05 ? "略偏不均" : "與完全隨機一致"}${mu < 5 ? " · 期數少，僅供參考" : ""}</div></div>
+    <div class="stat"><div class="k">同號連兩期</div><div class="v">${repeats}</div><div class="s">理論約 ${((N - 1) / 80).toFixed(1)} 次</div></div>
+    <div class="stat"><div class="k">目前最久沒當超級獎號</div><div class="v">${Math.max(...gaps.slice(1))} 期</div><div class="s">平均間隔 80 期</div></div>`;
+  // recent
+  $("#supRecent").innerHTML = sorted.slice(-30).reverse().map(t => {
+    const d = draws.get(t);
+    return `<span class="ball sup" title="${t} · ${d.date.slice(5)} ${drawTime(d)}">${pad(d.sup)}</span>`;
+  }).join("");
+  // heat
+  $("#supHeat").innerHTML = c80.map((c, i) => {
+    const z = (c - mu) / sdT, a = Math.min(1, Math.abs(z) / 2.5), col = z >= 0 ? "var(--hot)" : "var(--cold)";
+    const strong = Math.abs(z) >= 1;
+    const style = strong ? `background:${col};color:#fff;border-color:${col}` : `background:color-mix(in srgb, ${col} ${Math.round(a * 35)}%, var(--paper))`;
+    return `<div class="cell" style="${style}" title="${pad(i + 1)}：當超級獎號 ${c} 次，z=${z.toFixed(2)}，目前遺漏 ${gaps[i + 1]} 期"><div class="n">${pad(i + 1)}</div><div class="c">${c} 次 · ${gaps[i + 1]}</div></div>`;
+  }).join("");
+  // lists
+  const ids = Array.from({ length: 80 }, (_, i) => i + 1);
+  const hot = ids.slice().sort((a, b) => cnt[b] - cnt[a] || gaps[a] - gaps[b]).slice(0, 10);
+  const cold = ids.slice().sort((a, b) => cnt[a] - cnt[b] || gaps[b] - gaps[a]).slice(0, 10);
+  const gap = ids.slice().sort((a, b) => gaps[b] - gaps[a]).slice(0, 10);
+  const pg = g => Math.pow(79 / 80, g);
+  const tbl = (title, arr, col) => `<div><h2 style="font-size:14px">${title}</h2><table class="rank"><tr><th>號碼</th>${col.map(c => `<th>${c[0]}</th>`).join("")}</tr>${arr.map(n => `<tr><td class="num"><b>${pad(n)}</b></td>${col.map(c => `<td class="num">${c[1](n)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+  $("#supLists").innerHTML =
+    tbl("超級獎號熱號前 10", hot, [["次數", n => cnt[n]], ["z", n => ((cnt[n] - mu) / sdT).toFixed(2)]]) +
+    tbl("超級獎號冷號前 10", cold, [["次數", n => cnt[n]], ["遺漏", n => gaps[n]]]) +
+    tbl("目前遺漏最久", gap, [["期數", n => gaps[n]], ["事前機率", n => (pg(gaps[n]) * 100).toFixed(1) + "%"]]);
+  // tail & zone
+  const tail = new Array(10).fill(0), zone = new Array(8).fill(0);
+  let big = 0, odd = 0;
+  R.forEach(t => { const s = draws.get(t).sup; tail[s % 10]++; zone[Math.floor((s - 1) / 10)]++; if (s > 40) big++; if (s % 2) odd++; });
+  const zc = i => { const z = (i - N / 10) / Math.sqrt(N * 0.1 * 0.9); return z >= 1 ? "var(--hot)" : z <= -1 ? "var(--cold)" : "var(--muted)"; };
+  barChart($("#supTail"), tail.map((_, i) => "尾" + i), tail, tail.map(() => N / 10), i => zc(tail[i]), "超級獎號尾數分布");
+  const zcz = v => { const z = (v - N / 8) / Math.sqrt(N / 8 * 7 / 8); return z >= 1 ? "var(--hot)" : z <= -1 ? "var(--cold)" : "var(--muted)"; };
+  barChart($("#supZone"), zone.map((_, i) => `${pad(i * 10 + 1)}-`), zone, zone.map(() => N / 8), i => zcz(zone[i]), "超級獎號區段分布");
+  const sdH = Math.sqrt(N / 4);
+  const row = (a, va, b, vb) => `<tr><td>${a} / ${b}</td><td class="num">${va} / ${vb}</td><td class="num">${(va / N * 100).toFixed(1)}% / ${(vb / N * 100).toFixed(1)}%</td><td class="num">${((va - N / 2) / sdH).toFixed(2)}σ</td></tr>`;
+  $("#supAttr").innerHTML = `<tr><th>項目</th><th>次數</th><th>比例（理論 50%）</th><th>偏離</th></tr>` +
+    row("大（41–80）", big, "小（01–40）", N - big) + row("單", odd, "雙", N - odd);
+  renderStrategies(R);
+  renderCalc();
+}
+function renderStrategies(R) {
+  const look = +$("#stratLook").value, fixed = clampInt($("#stratFixed").value, 1, 80);
+  const start = sorted.indexOf(R[0]), end = sorted.indexOf(R[R.length - 1]);
+  const supCnt = new Array(81).fill(0), ballCnt = new Array(81).fill(0), lastIdx = new Array(81).fill(-1);
+  for (let i = 0; i < start; i++) { const d = draws.get(sorted[i]); lastIdx[d.sup] = i; if (i >= start - look) { supCnt[d.sup]++; for (const n of d.nums) ballCnt[n]++; } }
+  let seed = 20260126; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const S = [
+    ["押超級獎號熱號", `前 ${look} 期當超級獎號最多次的號碼`, i => argmax(supCnt)],
+    ["押超級獎號冷號", "距上次當超級獎號最久的號碼", i => { let b = 1, g = -1; for (let n = 1; n <= 80; n++) { const v = i - lastIdx[n]; if (v > g) { g = v; b = n; } } return b; }],
+    ["押上期超級獎號", "賭同一號碼連莊", i => i > 0 ? draws.get(sorted[i - 1]).sup : 1],
+    ["押一般熱號", `前 ${look} 期 20 顆球裡開最多的號碼`, i => argmax(ballCnt)],
+    ["固定號碼 " + pad(fixed), "每期都押同一個號碼", i => fixed],
+    ["隨機選號", "每期電腦隨機選 1 個（固定亂數種子）", i => 1 + Math.floor(rnd() * 80)]
+  ];
+  function argmax(a) { let b = 1; for (let n = 2; n <= 80; n++) if (a[n] > a[b]) b = n; return b; }
+  const res = S.map(() => ({ hits: 0 }));
+  for (let i = start; i <= end; i++) {
+    const d = draws.get(sorted[i]);
+    S.forEach((s, k) => { if (s[2](i) === d.sup) res[k].hits++; });
+    // slide window
+    lastIdx[d.sup] = i; supCnt[d.sup]++; for (const n of d.nums) ballCnt[n]++;
+    const out = i - look; if (out >= 0) { const o = draws.get(sorted[out]); supCnt[o.sup]--; for (const n of o.nums) ballCnt[n]--; }
+  }
+  const N = end - start + 1, cost = N * UNIT;
+  $("#stratTbl").innerHTML = `<tr><th>策略</th><th>中獎次數</th><th>理論次數</th><th>投入</th><th>獎金</th><th>回收率</th></tr>` +
+    S.map((s, k) => {
+      const pay = res[k].hits * 1200, r = pay / cost * 100;
+      return `<tr><td><b>${s[0]}</b><br><span class="note" style="margin:0">${s[1]}</span></td><td class="num">${res[k].hits}</td><td class="num">${(N / 80).toFixed(1)}</td><td class="num">${fmt(cost)}</td><td class="num">${fmt(pay)}</td><td class="num" style="color:${r >= 100 ? "var(--win)" : "var(--lose)"}">${r.toFixed(1)}%</td></tr>`;
+    }).join("");
+  const sdHits = Math.sqrt(N / 80 * 79 / 80);
+  $("#stratNote").textContent = `共 ${N} 期，每種策略理論上中 ${(N / 80).toFixed(1)} 次（±${sdHits.toFixed(1)} 次是一個標準差），回收率期望值 60%。各策略之間的差異落在這個範圍內就只是運氣；換一段期間重跑，排名通常會洗牌。`;
+}
+function renderCalc() {
+  const k = clampInt($("#calcK").value, 1, 20), n = clampInt($("#calcN").value, 1, 203);
+  const p1 = k / 80, pAny = 1 - Math.pow(1 - p1, n);
+  const cost = k * n * UNIT, evPay = n * k * 1200 / 80;
+  const pProfit = (() => { // 至少中幾次才回本
+    const need = Math.ceil((cost + 1) / 1200); let q = 0;
+    for (let h = need; h <= n; h++) q += comb(n, h) * Math.pow(p1, h) * Math.pow(1 - p1, n - h);
+    return q;
+  })();
+  $("#calcOut").innerHTML = `
+    <span>每期中獎率 <span class="num">${(p1 * 100).toFixed(2)}%</span></span>
+    <span>${n} 期至少中 1 次 <span class="num">${(pAny * 100).toFixed(2)}%</span></span>
+    <span>全槓 <span class="num">${((1 - pAny) * 100).toFixed(2)}%</span></span>
+    <span>投入 <span class="num">${fmt(cost)}</span> 元</span>
+    <span>有賺的機率 <span class="num">${(pProfit * 100).toFixed(2)}%</span></span>
+    <span>平均拿回 <span class="num">${fmt(evPay)}</span> 元（60%）</span>`;
+}
+
+/* ---------- render: 大小單雙 ---------- */
+let bsoWin = 0;
+const KINDS = {
+  bs: { name: "大小", A: "大", B: "小", aDesc: "41–80", bDesc: "01–40", val: d => d.nums.filter(n => n > 40).length },
+  oe: { name: "單雙", A: "單", B: "雙", aDesc: "單數", bDesc: "雙數", val: d => d.nums.filter(n => n % 2).length }
+};
+const resOf = k => k >= 13 ? "A" : k <= 7 ? "B" : "-";
+const P_K = (() => { const a = []; for (let k = 0; k <= 20; k++) a[k] = comb(40, k) * comb(40, 20 - k) / comb(80, 20); return a; })();
+const SD_K = Math.sqrt(20 * 0.5 * 0.5 * 60 / 79);
+// 大小×單雙 聯合機率（四類各 20 個號碼的多變量超幾何）
+const JOINT = (() => {
+  const J = { A: { A: 0, B: 0, "-": 0 }, B: { A: 0, B: 0, "-": 0 }, "-": { A: 0, B: 0, "-": 0 } }, tot = comb(80, 20);
+  for (let a = 0; a <= 20; a++) for (let b = 0; a + b <= 20; b++) for (let c = 0; a + b + c <= 20; c++) {
+    const d = 20 - a - b - c; if (d > 20) continue;
+    const p = comb(20, a) * comb(20, b) * comb(20, c) * comb(20, d) / tot;
+    J[resOf(a + b)][resOf(a + c)] += p; // a=大單 b=大雙 c=小單 d=小雙
+  }
+  return J;
+})();
+function bsoRange() {
+  const d = $("#bsoDate").value;
+  if (d) return sorted.filter(t => draws.get(t).date === d);
+  return bsoWin ? sorted.slice(-bsoWin) : sorted.slice();
+}
+function streakInfo(seq, side) { // 最長連中、最長未中、目前未中
+  let run = 0, best = 0, gap = 0, maxGap = 0;
+  for (const r of seq) { if (r === side) { run++; best = Math.max(best, run); gap = 0; } else { run = 0; gap++; maxGap = Math.max(maxGap, gap); } }
+  return { best, maxGap, cur: gap };
+}
+function renderBso() {
+  document.querySelectorAll("#bsoWinSeg button").forEach(b => b.setAttribute("aria-pressed", !$("#bsoDate").value && +b.dataset.w === bsoWin));
+  const R = bsoRange(), N = R.length;
+  if (N < 20) { $("#bsoCols").innerHTML = `<div class="empty">資料太少，無法分析。</div>`; return; }
+  const first = draws.get(R[0]), last = draws.get(R[N - 1]);
+  $("#bsoWinNote").textContent = `${R[0]}（${first.date} ${drawTime(first)}）到 ${R[N - 1]}（${last.date} ${drawTime(last)}），共 ${N} 期。單邊中獎率 ${(P_BS * 100).toFixed(2)}%，兩邊都不中 ${((1 - 2 * P_BS) * 100).toFixed(2)}%。`;
+  const seqs = {}, vals = {};
+  let html = "";
+  for (const [key, K] of Object.entries(KINDS)) {
+    const v = R.map(t => K.val(draws.get(t))), seq = v.map(resOf);
+    seqs[key] = seq; vals[key] = v;
+    const cA = seq.filter(r => r === "A").length, cB = seq.filter(r => r === "B").length, cN = N - cA - cB;
+    const sdW = Math.sqrt(N * P_BS * (1 - P_BS)), sdN = Math.sqrt(N * 2 * P_BS * (1 - 2 * P_BS));
+    const mean = v.reduce((a, b) => a + b, 0) / N, sdO = Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / (N - 1));
+    // 目前遺漏以整份資料最後一期為準
+    const allSeq = sorted.map(t => resOf(K.val(draws.get(t))));
+    const sA = streakInfo(seq, "A"), sB = streakInfo(seq, "B"), gA = streakInfo(allSeq, "A").cur, gB = streakInfo(allSeq, "B").cur;
+    const pg = g => Math.pow(1 - P_BS, g) * 100;
+    const row = (lbl, c, e, sd) => `<tr><td>${lbl}</td><td class="num">${c}</td><td class="num">${(c / N * 100).toFixed(2)}%</td><td class="num">${e.toFixed(1)}</td><td class="num" style="color:${Math.abs((c - e) / sd) >= 2 ? "var(--lose)" : "inherit"}">${((c - e) / sd).toFixed(2)}σ</td></tr>`;
+    html += `<div class="panel">
+      <h2>${K.name} <span class="hint">${K.A}＝${K.aDesc} ≥ 13 個，${K.B}＝${K.bDesc} ≥ 13 個</span></h2>
+      <table class="odds">
+        <tr><th>結果</th><th>次數</th><th>比例</th><th>理論</th><th>偏離</th></tr>
+        ${row("開 " + K.A, cA, N * P_BS, sdW)}${row("開 " + K.B, cB, N * P_BS, sdW)}${row("都不中", cN, N * (1 - 2 * P_BS), sdN)}
+      </table>
+      <div class="stats" style="margin-top:12px">
+        <div class="stat"><div class="k">每期${K.aDesc}平均個數</div><div class="v">${mean.toFixed(2)}</div><div class="s">理論 10.00</div></div>
+        <div class="stat"><div class="k">標準差（實際 / 理論）</div><div class="v">${sdO.toFixed(2)}</div><div class="s">理論 ${SD_K.toFixed(2)}</div></div>
+        <div class="stat"><div class="k">目前沒開${K.A} / ${K.B}</div><div class="v">${gA} / ${gB}</div><div class="s">事前機率 ${pg(gA).toFixed(1)}% / ${pg(gB).toFixed(1)}%</div></div>
+        <div class="stat"><div class="k">最長沒開${K.A} / ${K.B}</div><div class="v">${sA.maxGap} / ${sB.maxGap}</div><div class="s">最長連開 ${sA.best} / ${sB.best} 期</div></div>
+      </div>
+      <div class="chart" id="bsoDist-${key}" style="margin-top:12px"></div>
+    </div>`;
+  }
+  $("#bsoCols").innerHTML = html;
+  for (const key of Object.keys(KINDS)) {
+    const v = vals[key], labels = [], act = [], exp = [];
+    for (let k = 4; k <= 16; k++) {
+      labels.push(String(k));
+      act.push(v.filter(x => k === 4 ? x <= 4 : k === 16 ? x >= 16 : x === k).length);
+      exp.push(N * (k === 4 ? P_K.slice(0, 5).reduce((a, b) => a + b) : k === 16 ? P_K.slice(16).reduce((a, b) => a + b) : P_K[k]));
+    }
+    barChart($("#bsoDist-" + key), labels, act, exp, i => +labels[i] >= 13 ? "var(--hot)" : +labels[i] <= 7 ? "var(--cold)" : "var(--muted)", KINDS[key].aDesc + "個數分布");
+  }
+  // trend
+  const T = sorted.slice(-60);
+  const cell = (t, key) => {
+    const K = KINDS[key], k = K.val(draws.get(t)), r = resOf(k);
+    const cls = r === "A" ? "hot" : r === "B" ? "cold" : "lose";
+    return `<td title="${t} ${drawTime(draws.get(t))}：${K.aDesc} ${k} 個"><span class="pill ${cls}" style="padding:1px 4px;min-width:28px;text-align:center">${r === "A" ? K.A : r === "B" ? K.B : k}</span></td>`;
+  };
+  $("#bsoTrend").innerHTML = `<table style="border-collapse:separate;border-spacing:2px;font-size:12px"><tr><th style="text-align:left;padding-right:6px;color:var(--muted);font-weight:500">大小</th>${T.map(t => cell(t, "bs")).join("")}</tr><tr><th style="text-align:left;padding-right:6px;color:var(--muted);font-weight:500">單雙</th>${T.map(t => cell(t, "oe")).join("")}</tr></table><p class="note">沒中的期數顯示當期${KINDS.bs.aDesc}或單數的個數（8–12）。</p>`;
+  // cross
+  const lbl = { bs: { A: "大", B: "小", "-": "大小不中" }, oe: { A: "單", B: "雙", "-": "單雙不中" } };
+  let cross = `<tr><th></th>${["A", "B", "-"].map(c => `<th>${lbl.oe[c]}</th>`).join("")}<th>合計</th></tr>`;
+  for (const r of ["A", "B", "-"]) {
+    let tot = 0;
+    cross += `<tr><td>${lbl.bs[r]}</td>` + ["A", "B", "-"].map(c => {
+      const n = seqs.bs.filter((x, i) => x === r && seqs.oe[i] === c).length; tot += n;
+      return `<td class="num">${n} <span style="color:var(--muted)">(${(JOINT[r][c] * N).toFixed(1)})</span></td>`;
+    }).join("") + `<td class="num">${tot}</td></tr>`;
+  }
+  $("#bsoCross").innerHTML = cross;
+  // strategies
+  const strat = [];
+  for (const [key, K] of Object.entries(KINDS)) {
+    const seq = seqs[key];
+    const start = sorted.indexOf(R[0]);
+    let lastWin = null, gA = 0, gB = 0;
+    for (let i = 0; i < start; i++) { const r = resOf(K.val(draws.get(sorted[i]))); if (r !== "-") lastWin = r; gA = r === "A" ? 0 : gA + 1; gB = r === "B" ? 0 : gB + 1; }
+    const S = [["一直押" + K.A, () => ["A"]], ["一直押" + K.B, () => ["B"]], ["兩邊都押", () => ["A", "B"]],
+      ["跟上次開出的那邊", () => [lastWin || "A"]], ["押上次的反邊", () => [lastWin === "A" ? "B" : "A"]], ["押較久沒開的那邊", () => [gA >= gB ? "A" : "B"]]];
+    const res = S.map(() => ({ bets: 0, hits: 0 }));
+    seq.forEach(r => {
+      S.forEach((s, k) => { const picks = s[1](); res[k].bets += picks.length; if (picks.includes(r)) res[k].hits++; });
+      if (r !== "-") lastWin = r; gA = r === "A" ? 0 : gA + 1; gB = r === "B" ? 0 : gB + 1;
+    });
+    S.forEach((s, k) => strat.push({ kind: K.name, name: s[0], ...res[k] }));
+  }
+  $("#bsoStrat").innerHTML = `<tr><th>玩法</th><th style="text-align:left">策略</th><th>中獎次數</th><th>理論次數</th><th>投入</th><th>獎金</th><th>回收率</th></tr>` +
+    strat.map(s => {
+      const cost = s.bets * UNIT, pay = s.hits * 150, r = pay / cost * 100, e = s.bets * P_BS;
+      return `<tr><td>${s.kind}</td><td style="text-align:left"><b>${s.name}</b></td><td class="num">${s.hits}</td><td class="num">${e.toFixed(1)}</td><td class="num">${fmt(cost)}</td><td class="num">${fmt(pay)}</td><td class="num" style="color:${r >= 100 ? "var(--win)" : "var(--lose)"}">${r.toFixed(1)}%</td></tr>`;
+    }).join("");
+  $("#bsoStratNote").textContent = `共 ${N} 期。押單邊理論上中 ${(N * P_BS).toFixed(1)} 次（±${Math.sqrt(N * P_BS * (1 - P_BS)).toFixed(1)} 次是一個標準差），所有策略的回收率期望值都是 ${(6 * P_BS * 100).toFixed(1)}%。看前一期或遺漏來決定押哪邊，不會改變下一期的機率。`;
+}
+
+/* ---------- wiring ---------- */
+function renderAll() {
+  const L = latest(), first = sorted[0];
+  $("#dataRange").textContent = `${draws.get(first).date} – ${draws.get(L).date}，${fmt(sorted.length)} 期`;
+  $("#latestTerm").textContent = `${L}（${draws.get(L).date.slice(5)} ${drawTime(draws.get(L))}）`;
+  heatCache.clear();
+  renderStartSel(); renderRecDates(); renderAlerts(); renderSlip(); renderTickets(); renderRecords(); renderAnalysis(); renderSuper(); renderBso();
+  const today = taipeiDate();
+  $("#apiDate").textContent = today; $("#apiLink").href = API(today);
+}
+document.querySelector("nav.tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  document.querySelectorAll("nav.tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  for (const v of ["bet", "rec", "ana", "sup", "bso"]) $("#view-" + v).hidden = v !== b.dataset.tab;
+  store.set("bb_tab", b.dataset.tab);
+});
+$("#gameSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-game]"); if (!b) return;
+  ui.game = b.dataset.game; ui.nums.clear(); ui.choice.clear(); renderSlip();
+});
+$("#starSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-star]"); if (!b) return;
+  ui.stars = +b.dataset.star;
+  while (ui.nums.size > ui.stars) ui.nums.delete([...ui.nums].pop());
+  renderStarSeg(); renderSlip();
+});
+$("#slip").addEventListener("click", e => {
+  const b = e.target.closest("button[data-n]"); if (!b) return;
+  const n = +b.dataset.n;
+  if (ui.nums.has(n)) ui.nums.delete(n); else if (ui.nums.size < maxPick()) ui.nums.add(n);
+  renderSlip();
+});
+$("#choiceBox").addEventListener("click", e => {
+  const b = e.target.closest("button[data-c]"); if (!b) return;
+  const c = b.dataset.c; ui.choice.has(c) ? ui.choice.delete(c) : ui.choice.add(c); renderSlip();
+});
+$("#quickBtn").addEventListener("click", () => {
+  if (ui.game === "basic" || ui.game === "super") {
+    const want = ui.game === "basic" ? ui.stars : Math.max(1, ui.nums.size || 1);
+    if (ui.game === "super") ui.nums.clear();
+    while (ui.nums.size < want) ui.nums.add(1 + Math.floor(Math.random() * 80));
+  } else { ui.choice.clear(); ui.choice.add(Math.random() < .5 ? (ui.game === "bs" ? "big" : "odd") : (ui.game === "bs" ? "small" : "even")); }
+  renderSlip();
+});
+$("#alertPanel").addEventListener("click", e => {
+  const c = e.target.closest("button[data-an]"); if (!c) return;
+  const n = +c.dataset.an, g = c.dataset.ag;
+  if (ui.game !== g) { ui.game = g; ui.nums.clear(); ui.choice.clear(); }
+  if (ui.nums.has(n)) ui.nums.delete(n); else if (ui.nums.size < maxPick()) ui.nums.add(n);
+  renderSlip(); renderAlerts();
+});
+["#thBasic", "#thSuper"].forEach(id => $(id).addEventListener("change", () => {
+  alertTh.basic = clampInt($("#thBasic").value, 1, 200); alertTh.super = clampInt($("#thSuper").value, 1, 2000);
+  store.set("bb_alert_th_v1", alertTh); renderAlerts();
+}));
+$("#refBox").addEventListener("click", e => {
+  const w = e.target.closest("#refSeg button[data-w]");
+  if (w) { refWin[ui.game === "super" ? "super" : ui.game] = +w.dataset.w; renderSlip(); return; }
+  const c = e.target.closest("button[data-rn]");
+  if (c) { const n = +c.dataset.rn; if (ui.nums.has(n)) ui.nums.delete(n); else if (ui.nums.size < maxPick()) ui.nums.add(n); renderSlip(); return; }
+  const f = e.target.closest("button[data-fill]");
+  if (f) {
+    const L = $("#refBox")._lists; if (!L) return;
+    const k = L.want; ui.nums.clear();
+    let src;
+    if (f.dataset.fill === "mix") { src = []; const h = Math.ceil(k / 2); for (const n of L.hot) if (src.length < h) src.push(n); for (const n of L.cold) if (src.length < k && !src.includes(n)) src.push(n); }
+    else src = L[f.dataset.fill];
+    for (const n of src) if (ui.nums.size < k) ui.nums.add(n);
+    renderSlip();
+  }
+});
+$("#clearBtn").addEventListener("click",() => { ui.nums.clear(); ui.choice.clear(); renderSlip(); });
+["#mult", "#periods", "#startSel"].forEach(id => $(id).addEventListener("input", renderBetSummary));
+$("#placeBtn").addEventListener("click", () => {
+  const units = currentUnits(); if (!units) return;
+  const tk = {
+    id: Date.now(), game: ui.game, stars: ui.stars, units,
+    nums: ui.game === "basic" || ui.game === "super" ? [...ui.nums].sort((a, b) => a - b) : null,
+    choice: ui.game === "bs" || ui.game === "oe" ? [...ui.choice] : null,
+    mult: clampInt($("#mult").value, 1, 50), periods: clampInt($("#periods").value, 1, 203), start: +$("#startSel").value
+  };
+  $("#mult").value = tk.mult; $("#periods").value = tk.periods;
+  if (ticketCost(tk) > ledger().balance) { renderBetSummary(); return; }
+  tickets.push(tk); store.set("bb_tickets_v1", tickets);
+  renderTickets(); renderBetSummary();
+});
+$("#settleAllBtn").addEventListener("click", () => { ui.onlyPending = !ui.onlyPending; renderTickets(); });
+$("#resetConfirm").addEventListener("click", () => { $("#resetBox").hidden = false; $("#bankInit").value = bankInit; });
+$("#resetCancel").addEventListener("click", () => { $("#resetBox").hidden = true; });
+$("#resetBtn").addEventListener("click", () => {
+  bankInit = clampInt($("#bankInit").value, 100, 1e9); tickets = [];
+  store.set("bb_bank_v1", bankInit); store.set("bb_tickets_v1", tickets);
+  $("#resetBox").hidden = true; renderTickets(); renderBetSummary();
+});
+$("#refreshBtn").addEventListener("click", () => refreshDraws(false));
+$("#recDate").addEventListener("change", () => { recLimit = 60; renderRecords(); });
+$("#recSearch").addEventListener("input", () => { recLimit = 60; renderRecords(); });
+$("#recMore").addEventListener("click", () => { recLimit += 60; renderRecords(); });
+$("#records").addEventListener("click", e => {
+  const b = e.target.closest("button[data-bt]"); if (!b) return;
+  const t = b.dataset.bt; $("#startSel").value = t;
+  if ($("#startSel").value !== t) { const o = document.createElement("option"); o.value = t; o.textContent = "回測 " + t; $("#startSel").append(o); $("#startSel").value = t; }
+  document.querySelector('nav.tabs button[data-tab="bet"]').click(); renderBetSummary();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+$("#winSeg").innerHTML = WINS.map(([w, l]) => `<button type="button" data-w="${w}" aria-pressed="false">${l}</button>`).join("");
+$("#winSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-w]"); if (!b) return;
+  anaWin = +b.dataset.w; $("#anaDate").value = ""; renderAnalysis();
+});
+$("#anaDate").addEventListener("change", renderAnalysis);
+$("#supWinSeg").innerHTML = SUP_WINS.map(([w, l]) => `<button type="button" data-w="${w}" aria-pressed="false">${l}</button>`).join("");
+$("#supWinSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-w]"); if (!b) return;
+  supWin = +b.dataset.w; $("#supDate").value = ""; renderSuper();
+});
+$("#supDate").addEventListener("change", renderSuper);
+$("#bsoWinSeg").innerHTML = SUP_WINS.map(([w, l]) => `<button type="button" data-w="${w}" aria-pressed="false">${l}</button>`).join("");
+$("#bsoWinSeg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-w]"); if (!b) return;
+  bsoWin = +b.dataset.w; $("#bsoDate").value = ""; renderBso();
+});
+$("#bsoDate").addEventListener("change", renderBso);
+["#stratLook", "#stratFixed"].forEach(id => $(id).addEventListener("input", () => renderStrategies(supRange())));
+["#calcK", "#calcN"].forEach(id => $(id).addEventListener("input", renderCalc));
+$("#importBtn").addEventListener("click", () => {
+  const msg = $("#importMsg");
+  try {
+    const txt = $("#pasteBox").value; const json = parseApi(txt);
+    const rows = json?.content?.bingoQueryResult || [];
+    // 日期：用已知期別推算，否則用今天
+    let date = taipeiDate();
+    const anyKnown = rows.map(r => +r.drawTerm).find(t => draws.has(t));
+    if (anyKnown) date = draws.get(anyKnown).date;
+    else if (rows.length) {
+      const t0 = Math.min(...rows.map(r => +r.drawTerm));
+      const before = sorted.filter(t => t < t0).pop();
+      if (before) { const bd = draws.get(before).date; const days = Math.floor((t0 - (dayFirst[bd] ?? before)) / 203); date = new Date(new Date(bd + "T12:00:00+08:00").getTime() + days * 864e5).toISOString().slice(0, 10); }
+    }
+    const added = ingest(json, date); reindex(); renderAll();
+    msg.textContent = `匯入完成，新增 ${added} 期（${date}）。`; msg.className = "note"; $("#pasteBox").value = "";
+  } catch (e) { msg.textContent = "匯入失敗：" + e.message; msg.className = "note warn"; }
+});
+
+(async function boot() {
+  showMsg("讀取開獎資料中…");
+  try { await loadAll(true); } catch (e) { showMsg("讀取開獎資料失敗：" + e.message, "err"); return; }
+  reindex(); renderStarSeg(); renderAll(); showMsg(""); updateStamp();
+  setInterval(() => { if (!document.hidden) refreshDraws(true); }, POLL_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshDraws(true); });
+})();
+const savedTab = store.get("bb_tab", "bet");
+if (savedTab !== "bet") document.querySelector(`nav.tabs button[data-tab="${savedTab}"]`)?.click();
+</script>
+
+</body>
+</html>

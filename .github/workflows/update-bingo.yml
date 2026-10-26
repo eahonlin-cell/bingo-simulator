@@ -1,0 +1,39 @@
+name: Update BINGO BINGO draws
+
+on:
+  schedule:
+    # 每 5 分鐘（GitHub 允許的最短間隔；尖峰時段可能延遲幾分鐘）。
+    # 台灣時間 07:00–23:59 開獎，等於 UTC 23:00–15:59。
+    - cron: "*/5 0-15,23 * * *"
+  workflow_dispatch:
+    inputs:
+      dates:
+        description: "要補抓的日期（YYYY-MM-DD，可用空白分隔多天；留空＝昨天和今天）"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-bingo
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Fetch draws
+        run: node scripts/fetch-bingo.mjs ${{ github.event.inputs.dates }}
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- data; then echo "no new draws"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git commit -m "data: $(node -e "console.log(require('./data/index.json').latestTerm)")"
+          git push
